@@ -1,0 +1,29 @@
+{
+  "name": "@bcis/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts",
+    "db:reset": "tsx src/reset.ts",
+    "db:check": "drizzle-kit check",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@bcis/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.15"
+  }
+}
