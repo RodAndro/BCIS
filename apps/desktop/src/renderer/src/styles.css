@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+
+/*
+ * ── DESIGN TOKENS (§19) ───────────────────────────────────────────────────
+ * A business billing application, not a marketing site. The palette is
+ * deliberately small: navy for structure, one accent blue for interaction,
+ * and three semantic colours that are only ever used to mean something.
+ *
+ * Status is never communicated by colour alone — every status indicator pairs
+ * a colour with a text label, so it survives colour-blindness, a bad monitor,
+ * and a black-and-white printout of a report.
+ */
+
+@theme {
+  /*
+   * Inter is used when it is installed on the workstation. It is NOT fetched
+   * from a web font service: the office LAN has no internet dependency, and
+   * the production CSP forbids outbound connections from the renderer. The
+   * fallbacks are the Windows system UI faces, which are metrically close.
+   * Bundling Inter as a local woff2 is a Phase 8 polish item.
+   */
+  --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+
+  /* Business-software corners. Nothing is pill-shaped. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+}
+
+:root {
+  --background: #f6f8fb;
+  --surface: #ffffff;
+  --foreground: #0f172a;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #2563eb;
+
+  --primary: #0f2747;
+  --primary-foreground: #ffffff;
+
+  --secondary: #eef2f7;
+  --secondary-foreground: #0f2747;
+
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+
+  --success: #059669;
+  --warning: #d97706;
+  --destructive: #dc2626;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    /* A desktop application, not a web page: text should not be selectable
+       by dragging across the chrome. Form fields opt back in below. */
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable='true'] {
+    user-select: text;
+  }
+
+  /*
+   * §19: financial values are right-aligned so figures line up in a column and
+   * a misplaced decimal is visible. Tabular figures make every digit the same
+   * width, which is what actually achieves that.
+   */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}

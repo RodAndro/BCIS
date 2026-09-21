@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The production Content-Security-Policy is injected here at build time by
+      the bcis-production-csp plugin in electron.vite.config.ts. It is not
+      written in this file because development needs a looser policy for Vite's
+      React Refresh preamble and HMR websocket, and maintaining two copies by
+      hand is how they drift apart.
+    -->
+    <title>BCIS Subscription Billing and Collection System</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
