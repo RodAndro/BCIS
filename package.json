@@ -1,0 +1,43 @@
+{
+  "name": "bcis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BCIS Subscription Billing and Collection System — Bukidnon Cable and Internet Services",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "postinstall": "node scripts/ensure-electron.mjs",
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "pnpm --filter @bcis/desktop build && playwright test",
+    "db:generate": "pnpm --filter @bcis/database db:generate",
+    "db:migrate": "pnpm --filter @bcis/database db:migrate",
+    "db:reset": "pnpm --filter @bcis/database db:reset",
+    "db:check": "pnpm --filter @bcis/database db:check",
+    "pg:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/pg.ps1 start",
+    "pg:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/pg.ps1 stop",
+    "pg:status": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/pg.ps1 status"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.13.6",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.8",
+    "turbo": "^2.11.2",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1"
+  }
+}

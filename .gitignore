@@ -1,0 +1,44 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Command Code agent state (local permission grants, learned preferences).
+# Machine-local tool configuration, not project source.
+.commandcode/
+
+# Local PostgreSQL runtime (portable binaries + cluster data)
+.runtime/
+data/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+release/
+*.tsbuildinfo
+
+# Turborepo task cache — regenerated from source, never committed
+.turbo/
+
+# Test output
+coverage/
+test-results/
+playwright-report/
+
+# Generated report artifacts
+reports-samples/*.pdf
+reports-samples/*.xlsx
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+logs/

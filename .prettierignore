@@ -1,0 +1,13 @@
+node_modules
+dist
+out
+release
+coverage
+.runtime
+data
+pnpm-lock.yaml
+database/migrations
+
+# Build cache and agent tool state: generated, not authored, so not ours to format.
+.turbo
+.commandcode

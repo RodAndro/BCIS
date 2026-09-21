@@ -1,0 +1,18 @@
+# Line endings.
+#
+# ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────
+# The Git for Windows installer sets `core.autocrlf=true` in the machine-level
+# config. Left alone, that gives every file a CRLF working copy on checkout,
+# which contradicts `.editorconfig` (`end_of_line = lf`) and makes
+# `pnpm format:check` fail on a fresh clone, because Prettier is configured with
+# `endOfLine: "lf"`. A checkout-dependent failure like that is reported as a
+# formatting problem and is actually a line-ending problem, which wastes an
+# afternoon.
+#
+# Declaring the intent here overrides the machine setting, so all three office
+# workstations and any Linux CI get identical bytes.
+* text=auto eol=lf
+
+# .editorconfig specifies CRLF for PowerShell. Windows PowerShell 5.1 is also
+# unreliable with LF-only script files containing non-ASCII characters.
+*.ps1 text eol=crlf

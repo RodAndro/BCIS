@@ -1,0 +1,38 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'database'
+
+# Added by pnpm: tsx@4.23.15 is newer than the default minimumReleaseAge
+# supply-chain policy, so it is explicitly exempted.
+minimumReleaseAgeExclude:
+  - tsx@4.23.15
+
+# ---------------------------------------------------------------------------
+# Dependency build allowlist
+#
+# pnpm does NOT run a dependency's install scripts unless it is approved here.
+# That default is a deliberate supply-chain guard, but it has a sharp edge:
+# when a package is missing, its postinstall silently does nothing rather than
+# failing. The clearest example is `electron`, whose postinstall downloads the
+# actual runtime binary. Without the entry below, `pnpm install` succeeds and
+# `electron-vite dev` later fails with a missing binary.
+#
+# `esbuild` needs its postinstall to place the platform-specific binary used by
+# Vite, tsup, and Vitest.
+#
+# ---------------------------------------------------------------------------
+# HISTORY / WHY THIS LOOKS THE WAY IT DOES
+# pnpm 11 replaced `onlyBuiltDependencies` with this map. The old key is no
+# longer read at all — from package.json or from pnpm-workspace.yaml — so an
+# install configured that way silently approves nothing. `pnpm config list`
+# shows the effective `allowBuilds` map if this ever needs checking again.
+# ---------------------------------------------------------------------------
+# Everything not listed here runs no install scripts. Keep this list short:
+# every entry is code executed on this machine at install time.
+# ---------------------------------------------------------------------------
+allowBuilds:
+  electron: true
+  esbuild: true
+  '@tailwindcss/oxide': true
+  '@node-rs/argon2': true
