@@ -65,6 +65,20 @@ const envSchema = z.object({
     ),
 
   DB_LOG_QUERIES: booleanFromEnv('DB_LOG_QUERIES'),
+
+  // --- Sessions and lockout (Phase 2) -------------------------------------
+  /** How long a session stays valid. Twelve hours covers one long shift. */
+  SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
+
+  /** Consecutive failures before the account is locked. */
+  MAX_FAILED_LOGIN_ATTEMPTS: z.coerce.number().int().min(1).max(50).default(5),
+
+  /** How long the account stays locked once the threshold is reached. */
+  ACCOUNT_LOCK_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+
+  BACKUP_ROOT: z.string().trim().min(1).default('data/backups'),
+  PROOF_STORAGE_ROOT: z.string().trim().min(1).default('data/proofs'),
+  POSTGRES_BIN_DIR: z.string().trim().min(1).default('.runtime/pgsql/bin'),
 });
 
 export type Env = z.infer<typeof envSchema>;

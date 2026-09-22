@@ -20,5 +20,35 @@ export {
 } from './allocation';
 export type { AllocatableInvoice, AllocationLine, AllocationResult } from './allocation';
 
+export {
+  BillingError,
+  DISPLAY_INVOICE_STATUSES,
+  STORED_INVOICE_STATUSES,
+  adjustmentLine,
+  billingPeriodFor,
+  chargeLine,
+  computeInvoiceDates,
+  computeInvoiceTotals,
+  discountLine,
+  displayStatusFor,
+  isOpenInvoice,
+  isPenaltyDue,
+  monthKeyOf,
+  occurredWithin,
+  penaltyThreshold,
+  summariseLines,
+} from './billing';
+export type {
+  BillingPeriod,
+  DisplayInvoiceStatus,
+  InvoiceDates,
+  InvoiceItemDirection,
+  InvoiceItemType,
+  InvoiceLine,
+  InvoiceTotals,
+  LineTotals,
+  StoredInvoiceStatus,
+} from './billing';
+
 export { computeBatchTotals, computeRemittanceVariance, remittanceCloseBlockers } from './variance';
 export type { BatchTotals, BatchTotalsInput, RemittanceVariance, VarianceType } from './variance';

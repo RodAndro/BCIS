@@ -65,6 +65,32 @@ export {
 export type { ErrorCode, ErrorDetails } from './errors';
 
 export {
+  ALLOWED_STATUS_TRANSITIONS,
+  SERVICE_ACCOUNT_STATUSES,
+  SERVICE_ACCOUNT_STATUS_LABELS,
+  SERVICE_EVENT_TYPES,
+  canTransitionServiceStatus,
+  eventTypeForTransition,
+  isServiceDelivering,
+} from './service-lifecycle';
+export type { ServiceAccountStatus, ServiceEventType } from './service-lifecycle';
+
+export { DISPLAY_INVOICE_STATUSES, STORED_INVOICE_STATUSES } from './invoice-status';
+export type { DisplayInvoiceStatus, StoredInvoiceStatus } from './invoice-status';
+
+export {
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABELS,
+  RECEIPT_STATUSES,
+  canReversePayment,
+  paymentMethodCarriesReference,
+  paymentMethodRequiresVerification,
+} from './payment';
+export type { PaymentMethod, PaymentStatus, ReceiptStatus } from './payment';
+
+export {
   BUSINESS_TIMEZONE,
   BUSINESS_UTC_OFFSET_MINUTES,
   DateError,

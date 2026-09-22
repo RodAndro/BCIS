@@ -3,10 +3,11 @@
   "compilerOptions": {
     "lib": ["ES2023"],
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
-      "@renderer/*": ["src/renderer/src/*"],
-      "@shared/*": ["src/shared/*"]
+      "@renderer/*": ["./src/renderer/src/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@bcis/shared": ["./../../packages/shared/src/index.ts"],
+      "@bcis/validation": ["./../../packages/validation/src/index.ts"]
     }
   },
   "include": ["src/main/**/*.ts", "src/preload/**/*.ts", "src/shared/**/*.ts"]

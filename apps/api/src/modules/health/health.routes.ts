@@ -23,7 +23,14 @@ const SERVICE_NAME = 'bcis-api';
 const SERVICE_VERSION = '0.1.0';
 
 export const healthRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/health', async () => ({
+  /**
+   * Both routes are `public` on purpose: a liveness probe that requires a
+   * session cannot report that the server is alive before anyone has signed in,
+   * and an operator debugging a deployment has no token yet. Neither handler
+   * touches business data, and the readiness payload names only the database
+   * version and migration counts — never a credential.
+   */
+  app.get('/health', { config: { auth: { public: true } } }, async () => ({
     status: 'ok' as const,
     service: SERVICE_NAME,
     version: SERVICE_VERSION,
@@ -31,7 +38,7 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
     timestamp: new Date().toISOString(),
   }));
 
-  app.get('/health/db', async (request, reply) => {
+  app.get('/health/db', { config: { auth: { public: true } } }, async (request, reply) => {
     const health = await checkDatabaseHealth(app.pool);
 
     if (!health.connected) {

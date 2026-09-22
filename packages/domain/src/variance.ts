@@ -8,15 +8,14 @@ import { type Centavos, type SignedCentavos, centavos, subtractCentavos } from '
  * figures should match. When they do not, the system must record the
  * difference explicitly rather than treat the batch as balanced.
  *
- *   Cash collected  ₱20,000.00
- *   Cash remitted   ₱19,500.00
- *   Shortage           ₱500.00
+ *   Expected cash   ₱20,000.00
+ *   Remitted cash   ₱19,500.00
+ *   Difference        -₱500.00 (shortage)
  *
  * ── SIGN CONVENTION ─────────────────────────────────────────────────────────
- * `variance` is `cashCollected - cashRemitted`. A POSITIVE variance is a
- * SHORTAGE — the collector holds money the company has not received. A
- * negative variance is an OVERAGE. Getting this backwards would report every
- * honest shortage as an overage, so the convention is asserted by tests.
+ * `variance` is `cashRemitted - cashCollected`. A NEGATIVE variance is a
+ * SHORTAGE — the collector remitted less than expected. A positive variance
+ * is an OVERAGE. This convention is asserted by tests.
  *
  * ── WHY NON-CASH IS EXCLUDED ────────────────────────────────────────────────
  * `nonCashCollected` is tracked separately and excluded from this calculation.
@@ -30,7 +29,7 @@ export type VarianceType = 'BALANCED' | 'SHORTAGE' | 'OVERAGE';
 export interface RemittanceVariance {
   readonly cashCollected: Centavos;
   readonly cashRemitted: Centavos;
-  /** `cashCollected - cashRemitted`. Positive means the collector owes the company. */
+  /** `cashRemitted - cashCollected`. Negative means a shortage. */
   readonly variance: SignedCentavos;
   readonly type: VarianceType;
 }
@@ -39,13 +38,13 @@ export function computeRemittanceVariance(
   cashCollected: Centavos,
   cashRemitted: Centavos,
 ): RemittanceVariance {
-  const variance = subtractCentavos(cashCollected, cashRemitted);
+  const variance = subtractCentavos(cashRemitted, cashCollected);
 
   return {
     cashCollected,
     cashRemitted,
     variance,
-    type: variance === 0 ? 'BALANCED' : variance > 0 ? 'SHORTAGE' : 'OVERAGE',
+    type: variance === 0 ? 'BALANCED' : variance < 0 ? 'SHORTAGE' : 'OVERAGE',
   };
 }
 

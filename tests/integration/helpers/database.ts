@@ -52,7 +52,17 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     await runMigrations(pool, migrationsFolder);
   };
 
-  await runMigrations(pool, migrationsFolder);
+  /**
+   * Start from an empty database, not merely a migrated one.
+   *
+   * ── WHY THIS RESETS RATHER THAN ONLY MIGRATING ─────────────────────────────
+   * Integration files share one database and run serially. Migrating alone
+   * leaves the previous file's — and the previous RUN's — rows behind, so a
+   * suite that asserts "this account number is free" or "this plan code is new"
+   * passes the first time and fails every time after. Resetting here makes a
+   * suite depend only on its own fixtures.
+   */
+  await reset();
 
   return {
     pool,

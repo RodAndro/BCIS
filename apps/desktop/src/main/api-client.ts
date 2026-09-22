@@ -13,21 +13,29 @@
  * A cashier's screen must never hang indefinitely on a request that will not
  * return. The timeout turns an unreachable API into a fast, visible error.
  *
- * Phase 2 extends this class with the session token header and a 401 handler
- * that returns the user to the lock screen.
+ * ── THE TOKEN ───────────────────────────────────────────────────────────────
+ * `setToken` is the only way the credential enters the client. It is held in a
+ * private field on this instance — which lives in the main process — and is
+ * attached as a bearer header on every request. It is never returned to the
+ * renderer by any code path in this file.
  */
 
 export interface ApiResult<T> {
   readonly ok: boolean;
   readonly status: number;
   readonly data: T | null;
+  /** Human-readable message from the API error envelope, or a transport message. */
   readonly error: string | null;
+  /** Machine-readable code from the API error envelope, e.g. `FORBIDDEN`. */
+  readonly errorCode: string | null;
   readonly latencyMs: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
 export class ApiClient {
+  private token: string | null = null;
+
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS,
@@ -37,26 +45,44 @@ export class ApiClient {
     return this.baseUrl;
   }
 
+  /** Attach (or clear) the session token used for authenticated requests. */
+  setToken(token: string | null): void {
+    this.token = token;
+  }
+
   async get<T>(path: string): Promise<ApiResult<T>> {
     return this.request<T>(path, { method: 'GET' });
   }
 
-  async post<T>(path: string, body: unknown): Promise<ApiResult<T>> {
+  async post<T>(path: string, body?: unknown): Promise<ApiResult<T>> {
     return this.request<T>(path, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  }
+
+  async put<T>(path: string, body: unknown): Promise<ApiResult<T>> {
+    return this.request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  async patch<T>(path: string, body: unknown): Promise<ApiResult<T>> {
+    return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<ApiResult<T>> {
     const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
     const startedAt = performance.now();
 
+    const headers: Record<string, string> = {
+      accept: 'application/json',
+      ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(this.token === null ? {} : { authorization: `Bearer ${this.token}` }),
+    };
+
     try {
       const response = await fetch(url, {
         ...init,
-        headers: { accept: 'application/json', ...init.headers },
+        headers,
         // Node's AbortSignal.timeout aborts with a TimeoutError, which the
         // catch below reports as an unreachable API.
         signal: AbortSignal.timeout(this.timeoutMs),
@@ -71,6 +97,7 @@ export class ApiClient {
           status: response.status,
           data: null,
           error: describeFailure(payload, response.status),
+          errorCode: readErrorCode(payload),
           latencyMs,
         };
       }
@@ -80,6 +107,7 @@ export class ApiClient {
         status: response.status,
         data: payload as T,
         error: null,
+        errorCode: null,
         latencyMs,
       };
     } catch (error) {
@@ -91,6 +119,7 @@ export class ApiClient {
           error instanceof Error && error.name === 'TimeoutError'
             ? `The API did not respond within ${String(this.timeoutMs)} ms.`
             : 'The API is not reachable.',
+        errorCode: 'API_UNREACHABLE',
         latencyMs: Math.round(performance.now() - startedAt),
       };
     }
@@ -116,4 +145,15 @@ function describeFailure(payload: unknown, status: number): string {
     }
   }
   return `The API returned HTTP ${String(status)}.`;
+}
+
+/** Pulls the machine-readable code out of the API's error envelope. */
+function readErrorCode(payload: unknown): string | null {
+  if (typeof payload === 'object' && payload !== null && 'error' in payload) {
+    const envelope = (payload as { error?: { code?: unknown } }).error;
+    if (typeof envelope?.code === 'string') {
+      return envelope.code;
+    }
+  }
+  return null;
 }

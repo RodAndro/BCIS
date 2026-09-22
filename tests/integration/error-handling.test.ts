@@ -24,19 +24,22 @@ beforeAll(async () => {
   testDatabase = await createTestDatabase();
   app = await buildApp({ logger: false });
 
-  app.get('/__test__/validation', () => {
+  // These routes exist only inside this test process, and they still declare a
+  // policy: the auth plugin's `onRoute` hook refuses to let the server start if
+  // any route omits one, so a test fixture is not exempt.
+  app.get('/__test__/validation', { config: { auth: { public: true } } }, () => {
     throw new ValidationError('That amount is not valid.', { field: 'amount' });
   });
 
-  app.get('/__test__/forbidden', () => {
+  app.get('/__test__/forbidden', { config: { auth: { public: true } } }, () => {
     throw new ForbiddenError();
   });
 
-  app.get('/__test__/conflict', () => {
+  app.get('/__test__/conflict', { config: { auth: { public: true } } }, () => {
     throw new ConflictError('That record already exists.');
   });
 
-  app.get('/__test__/unexpected', () => {
+  app.get('/__test__/unexpected', { config: { auth: { public: true } } }, () => {
     // Stands in for a genuine bug: a TypeError somewhere deep in a handler.
     const broken: { value?: string } = {};
     return broken.value.length;

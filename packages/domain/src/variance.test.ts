@@ -12,19 +12,19 @@ describe('remittance variance (AT-07, AT-08)', () => {
     expect(remittanceCloseBlockers(result)).toEqual([]);
   });
 
-  it('reports a shortage as a positive variance', () => {
-    // ₱20,000 collected, ₱19,500 remitted, ₱500 short.
+  it('reports a shortage as a negative variance', () => {
+    // ₱20,000 collected, ₱19,500 remitted, -₱500 short.
     const result = computeRemittanceVariance(centavos(2_000_000), centavos(1_950_000));
 
-    expect(result.variance).toBe(50_000);
+    expect(result.variance).toBe(-50_000);
     expect(result.type).toBe('SHORTAGE');
     expect(remittanceCloseBlockers(result)).toHaveLength(1);
   });
 
-  it('reports an overage as a negative variance', () => {
+  it('reports an overage as a positive variance', () => {
     const result = computeRemittanceVariance(centavos(1_950_000), centavos(2_000_000));
 
-    expect(result.variance).toBe(-50_000);
+    expect(result.variance).toBe(50_000);
     expect(result.type).toBe('OVERAGE');
     expect(remittanceCloseBlockers(result)).toHaveLength(1);
   });
@@ -33,7 +33,7 @@ describe('remittance variance (AT-07, AT-08)', () => {
     const result = computeRemittanceVariance(centavos(2_000_000), centavos(1_999_999));
 
     expect(result.type).toBe('SHORTAGE');
-    expect(result.variance).toBe(1);
+    expect(result.variance).toBe(-1);
   });
 
   it('blocks closing a batch that has a shortage', () => {

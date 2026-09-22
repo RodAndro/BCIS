@@ -1,11 +1,8 @@
 import { join } from 'node:path';
 
-import { BrowserWindow, Menu, app, ipcMain, session, shell } from 'electron';
+import { BrowserWindow, Menu, app, session, shell } from 'electron';
 
-import { IPC_CHANNELS, type AppInfo, type HealthCheckResult } from '@shared/ipc';
-
-import { ApiClient } from './api-client';
-import { loadApiBaseUrl } from './repo-env';
+import { registerIpcHandlers } from './ipc';
 
 /**
  * Electron main process.
@@ -19,10 +16,10 @@ import { loadApiBaseUrl } from './repo-env';
  * `@shared/ipc`. Everything else in this file exists to keep it that way:
  * navigation is blocked, new windows are refused, and the only permitted
  * outbound HTTP is from this process to the API.
+ *
+ * The IPC handlers themselves live in `ipc.ts`, and the session token they
+ * manage lives in `api.ts` — in this process, never in the renderer.
  */
-
-const API_BASE_URL = loadApiBaseUrl();
-const apiClient = new ApiClient(API_BASE_URL);
 
 // A business application should not run two copies on one workstation: two
 // windows would mean two sessions and, potentially, two cashiers at one till.
@@ -204,74 +201,6 @@ function applyApplicationMenu(): void {
       },
     ]),
   );
-}
-
-function registerIpcHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.HEALTH_CHECK, async (): Promise<HealthCheckResult> => {
-    const apiResult = await apiClient.get<{
-      status: string;
-      version: string;
-    }>('/health');
-
-    // The API is up but the database question is separate, so ask it too. A
-    // single combined call would let a live API with a dead database look
-    // healthy, which is the failure mode this whole panel exists to catch.
-    const databaseResult = await apiClient.get<{
-      status: 'ok' | 'degraded' | 'unavailable';
-      database: {
-        connected: boolean;
-        latencyMs: number;
-        serverVersion: string | null;
-        appliedMigrations: number | null;
-        pendingMigrations: string[];
-      };
-    }>('/health/db');
-
-    return {
-      ok: apiResult.ok && databaseResult.ok,
-      api: {
-        reachable: apiResult.ok,
-        baseUrl: API_BASE_URL,
-        status: apiResult.data?.status ?? null,
-        version: apiResult.data?.version ?? null,
-        latencyMs: apiResult.latencyMs,
-        error: apiResult.error,
-      },
-      database:
-        databaseResult.data === null
-          ? {
-              connected: false,
-              status: null,
-              latencyMs: null,
-              serverVersion: null,
-              appliedMigrations: null,
-              pendingMigrations: [],
-              error: databaseResult.error,
-            }
-          : {
-              connected: databaseResult.data.database.connected,
-              status: databaseResult.data.status,
-              latencyMs: databaseResult.data.database.latencyMs,
-              serverVersion: databaseResult.data.database.serverVersion,
-              appliedMigrations: databaseResult.data.database.appliedMigrations,
-              pendingMigrations: databaseResult.data.database.pendingMigrations,
-              error: null,
-            },
-      checkedAt: new Date().toISOString(),
-    };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.APP_INFO, (): AppInfo => {
-    return {
-      name: app.getName(),
-      version: app.getVersion(),
-      electronVersion: process.versions.electron ?? 'unknown',
-      chromeVersion: process.versions.chrome ?? 'unknown',
-      nodeVersion: process.versions.node,
-      platform: process.platform,
-      apiBaseUrl: API_BASE_URL,
-    };
-  });
 }
 
 /** Only the dev server URL, or the packaged app's own files, are navigable. */

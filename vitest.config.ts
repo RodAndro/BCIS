@@ -7,6 +7,7 @@ const alias = {
   '@bcis/shared': resolvePath('./packages/shared/src/index.ts'),
   '@bcis/validation': resolvePath('./packages/validation/src/index.ts'),
   '@bcis/domain': resolvePath('./packages/domain/src/index.ts'),
+  '@bcis/security': resolvePath('./packages/security/src/index.ts'),
   '@bcis/database': resolvePath('./database/src/index.ts'),
 };
 

@@ -82,3 +82,41 @@ export const reasonSchema = z
 
 /** A quantity of service units. Whole units only — no half-months of service. */
 export const quantitySchema = z.number().int().positive().max(1000);
+
+/**
+ * A username.
+ *
+ * Restricted to characters that survive a copy-paste into a login box, an
+ * Excel export, and an audit log without quoting. Case is not significant —
+ * the `users.username` column is `citext` — but it is preserved for display.
+ */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, 'A username must be at least 3 characters.')
+  .max(50, 'A username must be at most 50 characters.')
+  .regex(/^[A-Za-z0-9._-]+$/, 'Use letters, digits, dot, underscore, or hyphen only.');
+
+/** Minimum password length. Length is the property that matters most. */
+export const MIN_PASSWORD_LENGTH = 12;
+
+/**
+ * A password being set.
+ *
+ * ── WHY A POLICY AT ALL ─────────────────────────────────────────────────────
+ * The laboratory specification requires secure password handling. Length is
+ * enforced first (12), then a small character-class requirement so that a long
+ * keyboard walk is not accepted. This is checked on the API as well as in the
+ * form: a client-side check is a convenience, not a control.
+ *
+ * It is deliberately NOT applied to the login schema — a password that
+ * predates a policy change must still be able to sign in, or the account is
+ * unusable until an administrator intervenes.
+ */
+export const passwordSchema = z
+  .string()
+  .min(MIN_PASSWORD_LENGTH, `Use at least ${String(MIN_PASSWORD_LENGTH)} characters.`)
+  .max(200, 'That password is too long.')
+  .refine((value) => /[a-z]/.test(value), 'Include a lower-case letter.')
+  .refine((value) => /[A-Z]/.test(value), 'Include an upper-case letter.')
+  .refine((value) => /[0-9]/.test(value), 'Include a digit.');

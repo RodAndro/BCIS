@@ -11,7 +11,8 @@ import {
 } from '@playwright/test';
 
 /**
- * Phase 1 end-to-end test: the desktop application launches and renders.
+ * End-to-end tests: the desktop application launches, renders, and keeps its
+ * security posture.
  *
  * ── WHAT THIS PROVES THAT THE OTHER SUITES CANNOT ───────────────────────────
  * The integration suite calls `buildApp()` in-process and uses `app.inject()`,
@@ -23,7 +24,8 @@ import {
  *   - `contextBridge` actually publishes the bridge into the renderer's world;
  *   - the renderer bundle executes and React mounts;
  *   - the renderer has no Node access, which is the entire point of the
- *     sandbox and the one property a regression would silently remove.
+ *     sandbox and the one property a regression would silently remove;
+ *   - the session token is NOT reachable from the renderer.
  *
  * ── WHY THE APP IS LAUNCHED FROM ITS BUILD OUTPUT ───────────────────────────
  * This runs `out/`, the same artefact a packaged installation runs. Launching
@@ -31,12 +33,11 @@ import {
  * module-loading path, and would prove less about what actually ships. The
  * root `test:e2e` script builds the desktop app first for that reason.
  *
- * ── WHY THE API IS NOT STARTED HERE ─────────────────────────────────────────
- * Every assertion below is about the shell, not about connectivity, so the
- * suite is deterministic whether or not an API happens to be running on the
- * workstation. The "show a real failure rather than a stale healthy" behaviour
- * is verified in §13 of the roadmap and covered from the API side by
- * `tests/integration/health.test.ts`.
+ * ── WHY NO API IS STARTED HERE ──────────────────────────────────────────────
+ * With no token, the client asks for its session state and gets "not signed
+ * in" without making a request, so the sign-in screen is what renders. Every
+ * assertion below is about the shell and the bridge, not about connectivity, so
+ * the suite is deterministic whether or not an API happens to be running.
  */
 
 const ROOT_MARKER = 'pnpm-workspace.yaml';
@@ -80,9 +81,6 @@ const desktopAppDirectory = resolve(findRepoRoot(process.cwd()), 'apps', 'deskto
  * and pnpm's isolated `node_modules` means a plain `require('electron')` from
  * this file would not resolve at all. Asking from the desktop package's own
  * directory puts the question where the answer is.
- *
- * `require('electron')` returns the absolute path to the binary, not a module:
- * that is what the package deliberately exports outside of an Electron runtime.
  */
 const requireFromDesktop = createRequire(resolve(desktopAppDirectory, 'package.json'));
 
@@ -130,41 +128,130 @@ test('starts the main process and opens the application window', async () => {
   expect(isDevServer || isPackagedFile).toBe(true);
 });
 
-test('renders the application shell and the system health screen', async () => {
+test('renders the sign-in screen when no session is present', async () => {
   await expect(page.getByText('BCIS Billing')).toBeVisible();
 
-  await expect(page.getByRole('heading', { name: 'System Health' })).toBeVisible();
+  // No token exists in the main process, so the client reports "not signed in"
+  // without making a request and the gate renders the sign-in form.
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  await expect(page.getByLabel('Username')).toBeVisible();
+  await expect(page.getByLabel('Password')).toBeVisible();
 
-  // The health screen is the only screen Phase 1 implements, and it is marked
-  // as the current page. Everything else in the sidebar advertises the phase
-  // that will build it rather than pretending to be navigable.
-  await expect(page.locator('[aria-current="page"]')).toHaveText('System Health');
+  // The shell is NOT rendered behind it: a sign-in screen that is a modal over
+  // a live workspace is how another user's data ends up visible.
+  await expect(page.getByRole('heading', { name: 'System Health' })).toHaveCount(0);
+});
 
-  await expect(page.getByText('Live status of the API and the PostgreSQL database')).toBeVisible();
+test('reports a failed sign-in to the user rather than failing silently', async () => {
+  await page.getByLabel('Username').fill('no.such.user');
+  await page.getByLabel('Password').fill('definitely-not-the-password');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  // Whether the API is unreachable or the credentials are wrong, the user must
+  // be told something. The specific message is asserted by the integration
+  // suite, which controls both variables.
+  await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 });
 });
 
 test('exposes exactly the declared preload surface to the renderer', async () => {
   const bridge = await page.evaluate(() => {
     const exposed = (window as unknown as { bcis?: Record<string, Record<string, unknown>> }).bcis;
 
-    const typeOfMember = (namespace: string, member: string): string =>
-      typeof exposed?.[namespace]?.[member];
-
     return {
       namespaces: Object.keys(exposed ?? {}).sort(),
-      healthCheck: typeOfMember('health', 'check'),
-      appInfo: typeOfMember('app', 'info'),
+      healthCheck: typeof exposed?.['health']?.['check'],
+      authLogin: typeof exposed?.['auth']?.['login'],
+      usersList: typeof exposed?.['users']?.['list'],
+      rolesList: typeof exposed?.['roles']?.['list'],
+      auditList: typeof exposed?.['audit']?.['list'],
+      settingsList: typeof exposed?.['settings']?.['list'],
+      subscribersList: typeof exposed?.['subscribers']?.['list'],
+      serviceAccountsList: typeof exposed?.['serviceAccounts']?.['list'],
+      plansList: typeof exposed?.['plans']?.['list'],
+      searchSubscribers: typeof exposed?.['search']?.['subscribers'],
+      billingDashboard: typeof exposed?.['billing']?.['dashboard'],
+      billingGenerate: typeof exposed?.['billing']?.['generate'],
+      invoicesList: typeof exposed?.['invoices']?.['list'],
+      invoiceVoid: typeof exposed?.['invoices']?.['void'],
+      ledgerSubscriber: typeof exposed?.['ledger']?.['subscriber'],
+      ledgerServiceAccount: typeof exposed?.['ledger']?.['serviceAccount'],
+      receivablesList: typeof exposed?.['receivables']?.['list'],
+      reportsDashboard: typeof exposed?.['reports']?.['dashboard'],
+      // A generic passthrough would let the renderer reach every channel the
+      // main process handles, including privileged ones added later.
+      hasGenericInvoke: exposed?.['invoke'] !== undefined,
+      hasIpcRenderer: exposed?.['ipcRenderer'] !== undefined,
     };
   });
 
-  // The bridge is a fixed set of named functions. If a generic
-  // `invoke(channel, payload)` passthrough were ever added, this assertion
-  // would fail — which is the point, because that passthrough would let the
-  // renderer reach every channel the main process handles, including ones
-  // added later for privileged operations.
-  expect(bridge.namespaces).toEqual(['app', 'health']);
+  expect(bridge.namespaces).toEqual([
+    'app',
+    'audit',
+    'auth',
+    'billing',
+    'collectionAreas',
+    'collectors',
+    'health',
+    'invoices',
+    'ledger',
+    'permissions',
+    'plans',
+    'receivables',
+    'reports',
+    'roles',
+    'search',
+    'serviceAccounts',
+    'serviceTypes',
+    'settings',
+    'subscribers',
+    'users',
+  ]);
+
   expect(bridge.healthCheck).toBe('function');
-  expect(bridge.appInfo).toBe('function');
+  expect(bridge.authLogin).toBe('function');
+  expect(bridge.usersList).toBe('function');
+  expect(bridge.rolesList).toBe('function');
+  expect(bridge.auditList).toBe('function');
+  expect(bridge.settingsList).toBe('function');
+  expect(bridge.subscribersList).toBe('function');
+  expect(bridge.serviceAccountsList).toBe('function');
+  expect(bridge.plansList).toBe('function');
+  expect(bridge.searchSubscribers).toBe('function');
+  expect(bridge.billingDashboard).toBe('function');
+  expect(bridge.billingGenerate).toBe('function');
+  expect(bridge.invoicesList).toBe('function');
+  expect(bridge.invoiceVoid).toBe('function');
+  expect(bridge.ledgerSubscriber).toBe('function');
+  expect(bridge.ledgerServiceAccount).toBe('function');
+  expect(bridge.receivablesList).toBe('function');
+  expect(bridge.reportsDashboard).toBe('function');
+
+  expect(bridge.hasGenericInvoke).toBe(false);
+  expect(bridge.hasIpcRenderer).toBe(false);
+});
+
+test('never exposes the session token to the renderer', async () => {
+  const state = await page.evaluate(async () => {
+    const bridge = (
+      window as unknown as {
+        bcis: { auth: { me: () => Promise<Record<string, unknown>> } };
+      }
+    ).bcis;
+
+    const result = await bridge.auth.me();
+
+    return {
+      keys: Object.keys(result).sort(),
+      stateKeys: Object.keys((result['state'] ?? {}) as Record<string, unknown>).sort(),
+      serialised: JSON.stringify(result),
+    };
+  });
+
+  // The token lives in main-process memory. If it ever appears in this payload,
+  // a renderer compromise becomes a session compromise.
+  expect(state.serialised).not.toContain('token');
+  expect(state.keys).toEqual(['error', 'errorCode', 'ok', 'state']);
+  expect(state.stateKeys).toEqual(['authenticated', 'locked', 'user']);
 });
 
 test('leaves the renderer without Node access', async () => {

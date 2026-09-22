@@ -8,6 +8,26 @@ deliberate trade-off from an accident.
 
 ## 1. The required data path
 
+The system is deployed across three office workstations that share one API and one database.
+The workstations run identical builds; what differs is the role of the person signed in to
+each.
+
+```
+PC 1 — Owner / Admin desktop   ─┐
+                                │
+PC 2 — Cashier desktop         ─┼── LAN ──▶ Fastify API ──▶ PostgreSQL 17
+                                │            (one host)       (one host)
+PC 3 — Operations desktop      ─┘
+```
+
+Every client reaches the database only through the API. No workstation holds database
+credentials, and none connects to PostgreSQL directly — that single restriction is what makes
+the server-side authorization in §5 meaningful rather than decorative. In production the API
+is bound to the host's LAN address with TLS in front of it; in Phase 1 development all three
+roles run from one machine against `127.0.0.1`.
+
+### Inside a single desktop process
+
 ```
 React Renderer  (no Node, no DB, no network credentials)
       ↓  typed, Zod-validated IPC contract
@@ -217,9 +237,9 @@ regardless of installed locale data.
 | #   | Module                | Responsibility                                                               | Status                                |
 | --- | --------------------- | ---------------------------------------------------------------------------- | ------------------------------------- |
 | M1  | **Platform**          | Config, env validation, DB pool, migrations, error handling, logging, health | **Phase 1 — built**                   |
-| M2  | **Identity & Access** | Users, roles, permissions, login, sessions, lock, RBAC guard                 | Phase 2                               |
-| M3  | **Subscribers**       | Subscriber records, addresses, contacts, status lifecycle                    | Phase 3                               |
-| M4  | **Services**          | Service types, plans, service accounts, service-event history                | Phase 3                               |
+| M2  | **Identity & Access** | Users, roles, permissions, login, sessions, lock, RBAC guard                 | **Phase 2 — built**                   |
+| M3  | **Subscribers**       | Subscriber records, addresses, contacts, status lifecycle                    | **Phase 3 — built**                   |
+| M4  | **Services**          | Service types, plans, service accounts, service-event history                | **Phase 3 — built**                   |
 | M5  | **Billing**           | Cycles, invoice generation, numbering, states, adjustments, void             | Phase 4                               |
 | M6  | **Ledger**            | Append-only entries, running balance, statement of account                   | Phase 4 (debit) / 5 (credit)          |
 | M7  | **Payments**          | Capture, allocation, receipts, GCash verification, reversal                  | Phase 5                               |
@@ -264,6 +284,7 @@ Dependencies worth stating explicitly:
 | Package               | May depend on                 | Must never depend on                          |
 | --------------------- | ----------------------------- | --------------------------------------------- |
 | `packages/shared`     | nothing                       | everything                                    |
+| `packages/security`   | `@node-rs/argon2`             | `database`, Fastify, React, the renderer      |
 | `packages/validation` | `shared`, `zod`               | `database`, Fastify, React                    |
 | `packages/domain`     | `shared`                      | `database`, Fastify, React, Electron, any I/O |
 | `database`            | `shared`, `drizzle-orm`, `pg` | Fastify, React, Electron                      |

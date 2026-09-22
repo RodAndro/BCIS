@@ -31,6 +31,9 @@ export const ERROR_CODES = {
   SESSION_EXPIRED: 'SESSION_EXPIRED',
   SESSION_LOCKED: 'SESSION_LOCKED',
   ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
+  /** Signed in, but must change the password before doing anything else. */
+  PASSWORD_CHANGE_REQUIRED: 'PASSWORD_CHANGE_REQUIRED',
   FORBIDDEN: 'FORBIDDEN',
 
   // --- Data integrity -----------------------------------------------------
@@ -67,6 +70,8 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   SESSION_EXPIRED: 401,
   SESSION_LOCKED: 423,
   ACCOUNT_LOCKED: 423,
+  ACCOUNT_DISABLED: 403,
+  PASSWORD_CHANGE_REQUIRED: 403,
   FORBIDDEN: 403,
 
   CONFLICT: 409,

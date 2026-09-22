@@ -67,18 +67,40 @@ function productionCspPlugin(): Plugin {
   };
 }
 
+/**
+ * Workspace packages are BUNDLED, not externalized.
+ *
+ * ── WHY THIS IS NOT THE DEFAULT ─────────────────────────────────────────────
+ * `externalizeDepsPlugin` turns every declared dependency into a runtime
+ * `require()`. That is right for compiled npm packages and wrong for these two:
+ * their `exports` map points at TypeScript source (`./src/index.ts`), because
+ * the API consumes them through tsx and Vite. A `require('@bcis/validation')`
+ * from `out/main/index.js` would therefore try to load a `.ts` file at runtime
+ * and fail.
+ *
+ * Excluding them lets Vite bundle and transpile them along with the main
+ * process. `zod`, which `@bcis/validation` depends on, is not a dependency of
+ * this package, so it is not externalized either and is bundled too.
+ */
+const BUNDLED_WORKSPACE_PACKAGES = ['@bcis/shared', '@bcis/validation'];
+
+const workspaceAliases = {
+  '@bcis/shared': resolve('../../packages/shared/src/index.ts'),
+  '@bcis/validation': resolve('../../packages/validation/src/index.ts'),
+};
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: BUNDLED_WORKSPACE_PACKAGES })],
     resolve: {
-      alias: { '@shared': resolve('src/shared') },
+      alias: { '@shared': resolve('src/shared'), ...workspaceAliases },
     },
   },
 
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: BUNDLED_WORKSPACE_PACKAGES })],
     resolve: {
-      alias: { '@shared': resolve('src/shared') },
+      alias: { '@shared': resolve('src/shared'), ...workspaceAliases },
     },
   },
 
@@ -87,6 +109,7 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('src/shared'),
+        ...workspaceAliases,
       },
     },
     plugins: [react(), tailwindcss(), productionCspPlugin()],

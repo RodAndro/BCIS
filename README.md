@@ -8,9 +8,11 @@ document that created it, every peso received to the document that recorded it, 
 collected in the field to a collector and a remittance, and that no posted record can be
 silently altered.
 
-> **Status: Phase 1 (Foundation) is complete.** The toolchain, database connection,
-> migration pipeline, error contract, and desktop shell work end to end. Billing, payments,
-> and collections are **not** implemented yet — see [What exists today](#what-exists-today).
+> **Status: Phases 1–9 are implemented, with payment capture remaining incomplete.** The
+> subscriber, billing, collection, receivables, reporting, backup, security, and deployment
+> surfaces are present and tested where documented. Payment capture, allocation, GCash
+> verification, receipts, and reversal workflows remain outside the implemented API — see
+> [What exists today](#what-exists-today) and the final QA report.
 
 ---
 
@@ -96,11 +98,17 @@ cashier, not by an operator.
 Integration tests read `TEST_DATABASE_URL` and refuse to run if it equals `DATABASE_URL`,
 because they destroy the database they run against.
 
-### 4. Apply migrations
+### 4. Apply migrations and seed
 
 ```bash
 pnpm db:migrate
+pnpm db:seed
 ```
+
+`db:seed` creates the seven roles, the permission list, the default settings, the development
+accounts listed under [Development accounts](#development-accounts), the plan catalog, three
+collection areas, and a synthetic subscriber dataset. It is idempotent, and it refuses to run
+against a production database.
 
 ### 5. Run it
 
@@ -140,28 +148,32 @@ launches a real Electron process — expect a window to appear and close.
 
 ## Commands
 
-| Command                                   | What it does                                    |
-| ----------------------------------------- | ----------------------------------------------- |
-| `pnpm dev`                                | API + desktop together                          |
-| `pnpm build`                              | Build every package                             |
-| `pnpm typecheck`                          | TypeScript across the workspace                 |
-| `pnpm lint`                               | ESLint across the workspace                     |
-| `pnpm format`                             | Prettier, write                                 |
-| `pnpm test`                               | Vitest: unit **and** integration projects       |
-| `pnpm test:unit`                          | Unit project only — no database needed          |
-| `pnpm test:integration`                   | Integration project — real PostgreSQL           |
-| `pnpm test:e2e`                           | Playwright against a real Electron process      |
-| `pnpm db:generate`                        | Generate a migration from the TypeScript schema |
-| `pnpm db:migrate`                         | Apply pending migrations                        |
-| `pnpm db:reset`                           | Drop and rebuild from migrations alone          |
-| `pnpm db:check`                           | Detect schema drift                             |
-| `pnpm pg:start` / `pg:stop` / `pg:status` | Manage the portable local cluster               |
+| Command                                   | What it does                                           |
+| ----------------------------------------- | ------------------------------------------------------ |
+| `pnpm dev`                                | API + desktop together                                 |
+| `pnpm build`                              | Build every package                                    |
+| `pnpm typecheck`                          | TypeScript across the workspace                        |
+| `pnpm lint`                               | ESLint across the workspace                            |
+| `pnpm format`                             | Prettier, write                                        |
+| `pnpm test`                               | Vitest: unit **and** integration projects              |
+| `pnpm test:unit`                          | Unit project only — no database needed                 |
+| `pnpm test:integration`                   | Integration project — real PostgreSQL                  |
+| `pnpm test:e2e`                           | Playwright against a real Electron process             |
+| `pnpm db:generate`                        | Generate a migration from the TypeScript schema        |
+| `pnpm db:migrate`                         | Apply pending migrations                               |
+| `pnpm db:seed`                            | Seed roles, permissions, settings and the dev accounts |
+| `pnpm db:reset`                           | Drop and rebuild from migrations alone                 |
+| `pnpm db:check`                           | Detect schema drift                                    |
+| `pnpm pg:start` / `pg:stop` / `pg:status` | Manage the portable local cluster                      |
 
 **On `turbo.json`:** it defines only `build`, `typecheck`, `lint`, and `dev`. Tests and
 database tasks are deliberately **not** turbo tasks. Integration tests share one real
 database and create financial documents with unique numbers, so running them per package in
-parallel would make failures non-deterministic. They run once from the root. There is also
-no `db:seed` yet — deterministic demo data is a Phase 3 deliverable (decision A16).
+parallel would make failures non-deterministic. They run once from the root.
+
+`pnpm db:seed` is idempotent and deterministic (decision A16): access control, development
+accounts, the plan catalog, synthetic subscribers and service accounts, and — since Phase 4 —
+three billing cycles with their invoices and ledger entries. Re-running it adds nothing.
 
 ---
 
@@ -214,13 +226,61 @@ docs/                 architecture, business rules
   tests.
 - A migration pipeline with a baseline migration that enables `citext` and `pg_trgm`.
 - The sandboxed Electron shell and the System Health screen.
+- **Authentication and RBAC (P2).** Argon2id password hashing, opaque server-side sessions
+  (only a SHA-256 is stored), failed-login lockout, session lock, and
+  `requirePermission(...)` on every protected route. A route that declares no policy stops
+  the server from starting, so "someone forgot to protect it" is a build failure rather than
+  a discovery.
+- **Administration (P2).** Users & Roles, the Audit Log, Settings, and My Account — with the
+  audit log append-only, enforced by a database trigger rather than by convention.
+- **Subscribers and services (P3).** Subscriber registration with multiple addresses and
+  contacts, service accounts on versioned plans, and append-only service history. Plan prices
+  are versioned rather than edited, so a later price change cannot alter what an account was
+  billed at; moving an account onto a new rate is a separate, audited action.
+- **Global subscriber search (P3).** A provider registry matches one query term across account
+  number, name, contact, and address, and is designed for invoice, receipt, and GCash reference
+  providers to be registered by Phases 4 and 5 without touching the search endpoint.
 
-**Not built yet** — authentication and RBAC (P2), subscribers and service plans (P3),
-billing and ledger (P4), payments (P5), collections (P6), receivables and suspension (P7),
-reports and dashboard (P8), backup/restore and deployment (P9), full QA and manuals (P10).
+**Not fully built yet** — payment capture, allocation, GCash verification, receipts, and payment
+reversal workflows (P5). Phase 10 documentation records this limitation rather than presenting
+payment schema and pure allocation rules as a finished payment module.
 
 The sidebar lists every planned screen with the phase that will build it. Nothing links to a
 screen that does nothing.
+
+---
+
+## Development accounts
+
+`pnpm db:seed` creates the roles, permissions, default settings, the development accounts, the
+plan catalog, three collection areas, and a synthetic subscriber dataset — 50 subscribers and 63
+service accounts across Internet, Cable, and Combo. It **refuses to run when
+`NODE_ENV=production`**, which is why the passwords below are safe to document: they exist only
+in development data, and a production database cannot acquire them by being migrated.
+
+| Username              | Role                  | Status   | Password              |
+| --------------------- | --------------------- | -------- | --------------------- |
+| `admin`               | Owner / Super Admin   | Active   | `Admin@BCIS2026`      |
+| `administrator`       | Administrator         | Active   | `Admin2@BCIS2026`     |
+| `cashier`             | Cashier               | Active   | `Cashier@BCIS2026`    |
+| `supervisor`          | Collection Supervisor | Active   | `Supervisor@BCIS2026` |
+| `auditor`             | Accounting / Auditor  | Active   | `Auditor@BCIS2026`    |
+| `technician.disabled` | Technician            | Disabled | `Technician@BCIS2026` |
+
+Override any of them with the `SEED_*` variables in `.env` (see `.env.example`). Nothing else
+does. The passwords are hashed with argon2id before they are stored — the plaintext exists only
+in this table and in your `.env`.
+
+The accounts are chosen to make the workflow demonstrable: the Owner can administer everything,
+the Administrator owns the operational data, the Cashier is the subject of the authorization
+test, the Collection Supervisor stands in as field staff for the demo routes, the Auditor has
+read-heavy access including the audit log, and the disabled account proves that an inactive user
+cannot sign in.
+
+> **If you are running under a shell that has `NODE_ENV` set to `production`**, `pnpm db:seed`
+> and `pnpm db:reset` will refuse to run. `process.loadEnvFile` never overwrites a variable that
+> is already in the environment, so the real value wins over `.env`. Set it for the command:
+> `$env:NODE_ENV='development'; pnpm db:seed`.
 
 ---
 

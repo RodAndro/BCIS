@@ -47,9 +47,8 @@ Consequences that follow directly:
 
 The balance is `SUM(debit_centavos) - SUM(credit_centavos)`, never a stored column.
 
-Separately, for collector remittances, `variance = cashCollected - cashRemitted`, so a
-**positive** variance is a **SHORTAGE** (the collector is holding money the company has not
-received). This is asserted by tests in `packages/domain/src/variance.test.ts`; do not
+Separately, for collector remittances, `variance = cashRemitted - cashCollected`, so a
+**negative** variance is a **SHORTAGE** and a positive variance is an **OVERAGE**. This is asserted by tests in `packages/domain/src/variance.test.ts`; do not
 "fix" it by flipping the operands.
 
 ---
@@ -145,6 +144,11 @@ apps/api/src/modules/payments/
   not, the migrations are wrong.
 - Do not write a seed that uses unseeded randomness. Demo data must be reproducible
   (decision A16), and ESLint rejects `Math.random` outside a test.
+- **Seeding is incremental, not one script.** The required demo dataset spans invoices,
+  payments, reversals, and suspensions, so it is built up as those tables appear: P3 seeds
+  master data, P4 adds billing, P5 the payment mix, P6 collections, and P7 the receivables
+  cases. `docs/roadmap.md` §15 carries the stage table and the quantities the finished seed
+  must hit; P10 verifies them.
 
 ---
 
@@ -209,17 +213,48 @@ share a commit; two unrelated fixes may not.
 
 ## 11. Where the project is
 
-**Phase 1 (Foundation) is complete.** The toolchain, the database connection, the migration
-pipeline, the error contract, and the desktop shell are in place and verified.
+**Phases 1 (Foundation), 2 (Authentication and RBAC), 3 (Plans, Subscribers and Service Accounts),
+4 (Billing and the Subscriber Ledger), 6 (Collector and Remittance Management), and 7
+(Receivables, Overdue Monitoring, Suspension and Reconnection) are complete.**
 
-What exists: `/health` and `/health/db`, the money and date primitives, shared Zod schemas,
-the pure allocation and remittance-variance rules, and a System Health screen that reads
-live status through the real renderer → preload → main → HTTP → Fastify → PostgreSQL chain.
+What exists: `/health` and `/health/db`; the money and date primitives; shared Zod schemas; the
+pure allocation, remittance-variance, service-lifecycle and billing rules; a System Health screen
+that reads live status through the real renderer → preload → main → HTTP → Fastify → PostgreSQL
+chain; users, roles, permissions, opaque server-side sessions, session lock, failed-login lockout
+and server-side authorization on every protected route; service types, versioned plans, collection
+areas, subscribers with addresses and contacts, service accounts with append-only history, and
+provider-based subscriber search; and — from Phase 4 — billing cycles, a transactional invoice
+generator with a preview, immutable finalized invoices with void and adjustment workflows, and an
+append-only subscriber ledger whose balances are derived rather than stored.
+Phase 6 adds collection batches, route sheets, remittance and reconciliation. Phase 7 adds
+allocation-derived receivables aging, paginated overdue follow-up, configurable suspension
+candidates, and explicit audited suspension/reconnection workflows with service history.
 
-What does **not** exist yet: authentication, subscribers, service plans, invoices, payments,
-collections, receivables, reports, backup. The sidebar lists each of those with the phase
-that will build it rather than linking to a screen that does nothing.
+Rules established so far that are worth carrying forward:
 
-**No phase beyond Phase 1 has been started, and none should be started without approval.**
-Ambiguities A1–A16 in the roadmap are unresolved by design; the phase that needs one asks
-for the decision before proceeding.
+- **A plan price is never edited, only superseded.** A price change inserts a new version and
+  closes the old one. `service_accounts.current_plan_price_centavos` is a snapshot taken at
+  activation, so nothing repriced the customers who were already on the plan — `applyPlanRate`
+  does that, one account at a time, with a reason.
+- **A subscriber is never deleted, only archived** — and archiving is refused while the
+  subscriber still has live service, because service running for a closed customer is a state no
+  screen can explain.
+- **A balance is never stored.** `ledger_entries` has no balance column; the running balance is a
+  window function over `(entry_date, id)`. A stored balance drifts silently, and when it does
+  there is no second number to check it against.
+- **An invoice total is never trusted.** It is constrained to equal its own components, and those
+  components are checked against the invoice's lines by a trigger. A total cannot be moved without
+  a line to justify it.
+- **A finalized invoice is never edited and never deleted.** A correction is an adjustment; an
+  annulment is a void, which posts a reversing ledger entry and leaves the number reserved.
+
+What does **not** exist yet: payment capture and GCash reconciliation services, final management
+reports, backup, and deployment. The sidebar lists each of those with the phase that will build it
+rather than linking to a screen that does nothing.
+
+**Phase 8 and later have not been started.**
+Ambiguities A1–A17 in the roadmap are unresolved by design; the phase that needs one asks for the
+decision before proceeding. Phase 4 needed A1, A2, A3, A4, A11 and A13 and used the roadmap's
+documented working assumptions for each; they are recorded in `docs/business-rules.md` §12 and in
+the Phase 4 report, and each is a service-level change rather than a migration if a different
+answer is wanted.

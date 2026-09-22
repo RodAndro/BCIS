@@ -23,6 +23,7 @@
     "db:generate": "pnpm --filter @bcis/database db:generate",
     "db:migrate": "pnpm --filter @bcis/database db:migrate",
     "db:reset": "pnpm --filter @bcis/database db:reset",
+    "db:seed": "pnpm --filter @bcis/database db:seed",
     "db:check": "pnpm --filter @bcis/database db:check",
     "pg:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/pg.ps1 start",
     "pg:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/pg.ps1 stop",
