@@ -1,4 +1,5 @@
 import type { Permission } from '@bcis/shared';
+import { Footer } from '@renderer/components/footer';
 import { Sidebar } from '@renderer/components/sidebar';
 import { TopBar } from '@renderer/components/top-bar';
 import { Alert } from '@renderer/components/ui/feedback';
@@ -107,7 +108,15 @@ function AppShell(): JSX.Element {
   }, []);
 
   return (
-    <div className="flex h-full">
+    /*
+     * The window is a fixed-height row that never scrolls: sidebar beside a
+     * column of header, scroll container, and footer. Only `main` scrolls, so
+     * the header and footer hold their position and nothing overlaps anything
+     * else — which is also why the footer needs no padding compensation.
+     * `overflow-hidden` is what keeps a wide table from scrolling the whole
+     * window sideways instead of its own container.
+     */
+    <div className="flex h-full overflow-hidden">
       <Sidebar
         active={navigation.screen}
         onSelect={(screen) => {
@@ -117,12 +126,14 @@ function AppShell(): JSX.Element {
         }}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <TopBar title={SCREEN_TITLES[navigation.screen]} />
 
-        <main className="flex-1 overflow-y-auto px-6 py-6">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
           <ScreenOutlet navigation={navigation} navigate={navigate} />
         </main>
+
+        <Footer />
       </div>
     </div>
   );

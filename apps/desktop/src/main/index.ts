@@ -91,7 +91,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
     minHeight: 700,
     // Matches --background so the window does not flash white before React
     // paints, which is jarring on a screen a cashier looks at all day.
-    backgroundColor: '#f6f8fb',
+    backgroundColor: '#f2f6fb',
     title: 'BCIS Subscription Billing and Collection System',
     show: false,
     autoHideMenuBar: true,

@@ -215,6 +215,7 @@ export {
   routeSheetEntrySchema,
   submitCollectionBatchSchema,
   updateCollectionAreaSchema,
+  varianceApprovalSchema,
 } from './collection';
 export type {
   BatchReconciliationInput,
@@ -234,6 +235,7 @@ export type {
   RouteSheetEntry,
   SubmitCollectionBatchInput,
   UpdateCollectionAreaInput,
+  VarianceApprovalInput,
 } from './collection';
 
 export {
@@ -267,6 +269,8 @@ export type { SearchProvider, SubscriberSearchQuery } from './search';
 
 export {
   dashboardSchema,
+  reportExportFormatSchema,
+  reportExportSchema,
   reportFormatSchema,
   reportQuerySchema,
   reportResultSchema,
@@ -274,7 +278,15 @@ export {
   reportTypeSchema,
   receiptIdParamSchema,
 } from './reports';
-export type { Dashboard, ReportFormat, ReportQuery, ReportResult, ReportType } from './reports';
+export type {
+  Dashboard,
+  ReportExportFormat,
+  ReportExportRequest,
+  ReportFormat,
+  ReportQuery,
+  ReportResult,
+  ReportType,
+} from './reports';
 
 export { backupHistorySchema, backupIdParamSchema } from './backup';
 export type { BackupHistory } from './backup';

@@ -49,7 +49,7 @@ function toReceivable(row: repository.ReceivableRow): ReceivableSummary {
     collector: row.collector,
     monthsUnpaid: row.monthsUnpaid,
     oldestUnpaidInvoice: row.oldestUnpaidInvoice,
-    lastPayment: row.lastPayment?.toISOString() ?? null,
+    lastPayment: row.lastPayment,
     totalArrearsCentavos: row.totalArrearsCentavos,
     agingBucket: row.agingBucket as ReceivableSummary['agingBucket'],
   };
@@ -104,7 +104,14 @@ export async function listSuspensionCandidates(
       thresholdDaysOverdue: settings.days,
       thresholdMonthsUnpaid: settings.months,
     }));
-  return { candidates, total: candidates.length };
+
+  // Candidate eligibility is decided in memory, so the page window is applied
+  // here rather than in SQL; `total` is the full candidate count, not the page.
+  const offset = offsetFor(query.page, query.pageSize);
+  return {
+    candidates: candidates.slice(offset, offset + query.pageSize),
+    total: candidates.length,
+  };
 }
 
 export async function suspendService(

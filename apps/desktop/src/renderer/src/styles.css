@@ -3,8 +3,18 @@
 /*
  * ── DESIGN TOKENS (§19) ───────────────────────────────────────────────────
  * A business billing application, not a marketing site. The palette is
- * deliberately small: navy for structure, one accent blue for interaction,
- * and three semantic colours that are only ever used to mean something.
+ * deliberately small: light blue surfaces for structure, one vivid blue
+ * accent for interaction, and four semantic colours that are only ever
+ * used to mean something.
+ *
+ * The interface is light by design. Financial tables are read at length and
+ * often printed, and a light canvas keeps figures legible both on screen and on
+ * a black-and-white printout. Surfaces stay near-neutral with only a faint
+ * green tint, so the accent reads as a signal rather than as decoration.
+ *
+ * ── THE ACCENT IS DARKER THAN THE BRAND SWATCH, ON PURPOSE ─────────────────
+ * The reference palette's light blue (#A8C4EC) is reserved for highlights and
+ * borders, while the deeper blue accent carries white text clearly.
  *
  * Status is never communicated by colour alone — every status indicator pairs
  * a colour with a text label, so it survives colour-blindness, a bad monitor,
@@ -22,59 +32,87 @@
   --font-sans: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
 
-  /* Business-software corners. Nothing is pill-shaped. */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
+  /* Consistent enterprise geometry: compact controls, softly framed surfaces. */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /* Soft, low-contrast elevation. On a light canvas a shadow reads as depth
+     only when it is restrained; a heavy grey drop shadow looks like a smudge. */
+  --shadow-panel: 0 1px 2px 0 rgb(38 43 64 / 0.04), 0 4px 12px -6px rgb(38 43 64 / 0.12);
+  --shadow-popover: 0 16px 36px -12px rgb(38 43 64 / 0.2), 0 4px 12px -4px rgb(38 43 64 / 0.1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-highlight: var(--primary-highlight);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
 
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
   --color-accent-foreground: var(--accent-foreground);
 
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
+  --color-info: var(--info);
 }
 
 :root {
-  --background: #f6f8fb;
+  color-scheme: light;
+
+    /* Surfaces — a quiet blue-white foundation for the reference palette. */
+    --background: #f2f6fb;
   --surface: #ffffff;
-  --foreground: #0f172a;
+  --popover: #ffffff;
+    --popover-foreground: #262b40;
+    --foreground: #262b40;
 
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+    --muted: #e8eef7;
+    --muted-foreground: #5379ae;
 
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #2563eb;
+    --border: #d3e0f2;
+    --input: #a8c4ec;
+    --ring: #0474c4;
 
-  --primary: #0f2747;
+    /* Application chrome: deep navy ties the navbar, sidebar, and footer together. */
+    --primary: #06457f;
   --primary-foreground: #ffffff;
+    --primary-highlight: #a8c4ec;
 
-  --secondary: #eef2f7;
-  --secondary-foreground: #0f2747;
+    --secondary: #e8eef7;
+    --secondary-foreground: #262b40;
 
-  --accent: #2563eb;
+    /* Vivid reference blue for primary actions and focus states. */
+    --accent: #0474c4;
+    --accent-hover: #0367ae;
+    --accent-active: #03558e;
   --accent-foreground: #ffffff;
 
-  --success: #059669;
-  --warning: #d97706;
-  --destructive: #dc2626;
+  /*
+   * Semantics are darker than their dark-mode counterparts: on a light surface
+   * they are read as text, so they must clear AA against white and against
+   * their own 10% tint. Success stays a teal-green rather than Mantis so "PAID"
+   * never reads as a brand action.
+   */
+  --success: #0f7a53;
+  --warning: #a15c07;
+  --destructive: #b42318;
+  --info: #175cd3;
 }
 
 @layer base {
@@ -86,6 +124,13 @@
   body,
   #root {
     height: 100%;
+  }
+
+  html {
+    /* Thin scrollbars that sit inside the light canvas instead of stamping a
+       heavy native track onto it. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
   }
 
   body {
@@ -119,5 +164,30 @@
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--input);
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
   }
 }

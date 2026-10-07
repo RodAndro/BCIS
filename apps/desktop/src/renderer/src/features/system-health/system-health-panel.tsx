@@ -79,7 +79,7 @@ export function SystemHealthPanel(): JSX.Element {
             {result === undefined ? '—' : `${String(result.api.latencyMs)} ms`}
           </HealthRow>
           {result?.api.error != null && (
-            <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+            <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {result.api.error}
             </p>
           )}
@@ -112,7 +112,7 @@ export function SystemHealthPanel(): JSX.Element {
           </HealthRow>
 
           {result !== undefined && result.database.pendingMigrations.length > 0 && (
-            <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="mt-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
               <p className="font-medium">This database is behind the code.</p>
               <p className="mt-1">
                 Run <span className="font-mono">pnpm db:migrate</span>. Pending:{' '}
@@ -122,7 +122,7 @@ export function SystemHealthPanel(): JSX.Element {
           )}
 
           {result?.database.error != null && (
-            <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+            <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {result.database.error}
             </p>
           )}
@@ -176,10 +176,10 @@ function OverallStatus({
 
   if (error !== null) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-4">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-5 py-4">
         <div className="flex items-center gap-3">
           <StatusPill tone="danger" label="Client error" />
-          <p className="text-sm text-red-800">
+          <p className="text-sm text-destructive">
             The desktop client could not complete the health check: {error.message}
           </p>
         </div>
@@ -197,10 +197,10 @@ function OverallStatus({
 
   if (health.ok) {
     return (
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4">
+      <div className="rounded-lg border border-success/30 bg-success/10 px-5 py-4">
         <div className="flex items-center gap-3">
           <StatusPill tone="success" label="All systems normal" />
-          <p className="text-sm text-emerald-800">
+          <p className="text-sm text-success">
             The client reached the API, and the API reached PostgreSQL.
           </p>
         </div>
@@ -210,10 +210,10 @@ function OverallStatus({
 
   if (health.api.reachable && !health.database.connected) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4">
+      <div className="rounded-lg border border-warning/30 bg-warning/10 px-5 py-4">
         <div className="flex items-center gap-3">
           <StatusPill tone="warning" label="Degraded" />
-          <p className="text-sm text-amber-800">
+          <p className="text-sm text-warning">
             The API is running but cannot reach PostgreSQL. No billing or payment operation can
             succeed until this is resolved.
           </p>
@@ -223,10 +223,10 @@ function OverallStatus({
   }
 
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-4">
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-5 py-4">
       <div className="flex items-center gap-3">
         <StatusPill tone="danger" label="API unreachable" />
-        <p className="text-sm text-red-800">
+        <p className="text-sm text-destructive">
           The desktop client cannot reach the API at {health.api.baseUrl}. Start it with{' '}
           <span className="font-mono">pnpm dev</span>.
         </p>

@@ -17,7 +17,7 @@ export interface ReceivableRow {
   readonly serviceStatus: string;
   readonly monthsUnpaid: number;
   readonly oldestUnpaidInvoice: string | null;
-  readonly lastPayment: Date | null;
+  readonly lastPayment: string | null;
   readonly totalArrearsCentavos: number;
   readonly agingBucket: string;
 }
@@ -99,12 +99,21 @@ function fromQuery(db: Executor, query: ReceivableListQuery, today: string) {
       serviceStatus: schema.serviceAccounts.status,
       monthsUnpaid: sql<number>`count(*)::int`,
       oldestUnpaidInvoice: sql<string | null>`min(${schema.invoices.dueDate})`,
-      lastPayment: sql<Date | null>`max((
+      /*
+       * ── WHY THIS IS FORMATTED IN SQL, NOT CONVERTED IN JS ────────────────
+       * A raw `sql` timestamp expression does NOT arrive as a Date the way a
+       * schema column does: it arrives as Postgres's own text form
+       * ("2026-09-22 21:00:01.229203+08"), which is not ISO-8601 and carries no
+       * toISOString(). Emitting the instant as ISO-8601 text here keeps the
+       * DTO's `z.string()` truthful and independent of how the driver happens
+       * to render a timestamptz.
+       */
+      lastPayment: sql<string | null>`to_char(max((
         select p.payment_date
         from payments p
         where p.service_account_id = ${schema.serviceAccounts.id}
           and p.status in ('POSTED', 'REVERSED')
-      ))`,
+      )) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
       totalArrearsCentavos: sql<number>`sum(${outstandingBalance})`,
       agingBucket,
     })

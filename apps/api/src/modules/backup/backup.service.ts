@@ -83,7 +83,23 @@ export async function verifyBackupFiles(
   backupDirectory: string,
 ): Promise<{ ok: boolean; notes: string }> {
   const manifestPath = join(backupDirectory, 'manifest.json');
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as BackupManifest;
+
+  let manifest: BackupManifest;
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as BackupManifest;
+  } catch (error) {
+    /*
+     * A backup that failed before its manifest was written still leaves its
+     * directory behind (see `createBackup`). Reporting "verification failed" is
+     * the truthful answer; letting ENOENT escape turns a re-check of an old
+     * failed backup into an unhandled 500.
+     */
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { ok: false, notes: 'The backup files are missing from the backup directory.' };
+    }
+    throw error;
+  }
+
   const archive = join(backupDirectory, manifest.databaseArchive);
   await run('pg_restore', ['--list', archive]);
   for (const file of manifest.attachments) {

@@ -27,10 +27,21 @@ const TITLES: Record<ReportType, string> = {
   COLLECTOR_REMITTANCE: 'Collector Remittance Report',
   COLLECTOR_VARIANCE: 'Collector Shortage/Overage Report',
   COLLECTOR_PERFORMANCE: 'Collector Performance Report',
+  PAYMENT_METHOD_SUMMARY: 'Payment Method Summary',
+  REVENUE_BY_PLAN: 'Revenue by Plan/Service',
   PAYMENT_ADJUSTMENTS: 'Payment Adjustment/Reversal Report',
   VOIDED_RECEIPTS: 'Voided Receipt Report',
   USER_ACTIVITY: 'User Activity/Audit Report',
 };
+
+const EXPORT_COLORS = {
+  navy: '06457F',
+  blue: '0474C4',
+  paleBlue: 'E8EEF7',
+  border: 'D3E0F2',
+  muted: '5379AE',
+  white: 'FFFFFF',
+} as const;
 
 function serialise(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
@@ -50,6 +61,18 @@ function totalsFor(rows: readonly Record<string, unknown>[]): Record<string, num
     }
   }
   return totals;
+}
+
+function formatColumnHeading(column: string): string {
+  return column
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
+    .replace(/\bCentavos\b/g, '(centavos)')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function wrapLongPdfText(value: unknown): string {
+  return String(value ?? '').replace(/(\S{16})(?=\S)/g, '$1\u200b');
 }
 
 async function dataForReport(db: Db, query: ReportQuery): Promise<ReportData> {
@@ -141,11 +164,80 @@ export async function getDashboard(db: Db): Promise<Dashboard> {
 export async function exportXlsx(db: Db, query: ReportQuery): Promise<Buffer> {
   const report = await getReport(db, query);
   const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'BCIS Subscription Billing and Collection System';
+  workbook.created = new Date(report.generatedAt);
   const sheet = workbook.addWorksheet(report.title.slice(0, 31));
-  sheet.addRow(report.columns);
+  const titleRow = sheet.addRow([report.title]);
+  sheet.mergeCells(1, 1, 1, Math.max(report.columns.length, 1));
+  titleRow.height = 28;
+  titleRow.font = { name: 'Arial', size: 16, bold: true, color: { argb: EXPORT_COLORS.white } };
+  titleRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: EXPORT_COLORS.navy },
+  };
+  titleRow.alignment = { vertical: 'middle' };
+
+  const generatedRow = sheet.addRow([`Generated ${report.generatedAt}`]);
+  sheet.mergeCells(2, 1, 2, Math.max(report.columns.length, 1));
+  generatedRow.font = { name: 'Arial', size: 9, color: { argb: EXPORT_COLORS.muted } };
+  generatedRow.height = 20;
+
+  sheet.addRow([]);
+  const displayColumns = report.columns.map(formatColumnHeading);
+  const headerRow = sheet.addRow(displayColumns);
+  headerRow.height = 22;
+  headerRow.font = { name: 'Arial', size: 10, bold: true, color: { argb: EXPORT_COLORS.white } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: EXPORT_COLORS.blue },
+  };
+  headerRow.alignment = { vertical: 'middle', wrapText: true };
   for (const row of report.rows) sheet.addRow(report.columns.map((column) => row[column] ?? ''));
-  sheet.getRow(1).font = { bold: true };
-  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+  sheet.columns = report.columns.map((column, index) => {
+    const maxLength = Math.max(
+      displayColumns[index]?.length ?? column.length,
+      ...report.rows.map((row) => String(row[column] ?? '').length),
+    );
+    return { key: String(index), width: Math.min(Math.max(maxLength + 2, 12), 32) };
+  });
+  for (let rowIndex = 5; rowIndex <= sheet.rowCount; rowIndex += 1) {
+    const row = sheet.getRow(rowIndex);
+    row.font = { name: 'Arial', size: 10, color: { argb: EXPORT_COLORS.navy } };
+    row.alignment = { vertical: 'middle' };
+    if (rowIndex % 2 === 0) {
+      row.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: EXPORT_COLORS.paleBlue },
+      };
+    }
+    row.eachCell((cell) => {
+      cell.border = { bottom: { style: 'hair', color: { argb: EXPORT_COLORS.border } } };
+    });
+  }
+  sheet.autoFilter = {
+    from: { row: 4, column: 1 },
+    to: { row: 4, column: report.columns.length },
+  };
+  sheet.views = [{ state: 'frozen', ySplit: 4 }];
+  sheet.pageSetup = {
+    paperSize: 9,
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 1 / 4,
+      right: 1 / 4,
+      top: 1 / 2,
+      bottom: 1 / 2,
+      header: 1 / 5,
+      footer: 1 / 5,
+    },
+  };
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
@@ -163,6 +255,8 @@ export async function exportCsv(db: Db, query: ReportQuery): Promise<Buffer> {
 
 export async function exportPdf(db: Db, query: ReportQuery): Promise<Buffer> {
   const report = await getReport(db, query);
+  const columnCount = Math.max(report.columns.length, 1);
+  const columnWidth = Math.max(1, (790 - 12 * columnCount) / columnCount);
   pdfMake.addFonts({
     Roboto: {
       normal: resolve(
@@ -184,22 +278,67 @@ export async function exportPdf(db: Db, query: ReportQuery): Promise<Buffer> {
     },
   });
   const definition = {
-    defaultStyle: { font: 'Roboto', fontSize: 8 },
+    pageSize: 'A4',
+    pageOrientation: 'landscape',
+    defaultStyle: { font: 'Roboto', fontSize: report.columns.length > 10 ? 6 : 8 },
+    pageMargins: [24, 36, 24, 36],
     content: [
-      { text: report.title, style: 'header' },
-      { text: `Generated ${report.generatedAt}`, margin: [0, 0, 0, 8] },
+      { text: report.title, style: 'title' },
+      { text: `Generated ${report.generatedAt}`, style: 'generated' },
       {
         table: {
           headerRows: 1,
-          widths: report.columns.map(() => '*'),
+          widths: report.columns.map(() => columnWidth),
           body: [
-            report.columns,
-            ...report.rows.map((row) => report.columns.map((column) => String(row[column] ?? ''))),
+            report.columns.map((column) => ({
+              text: formatColumnHeading(column),
+              style: 'tableHeader',
+            })),
+            ...report.rows.map((row) =>
+              report.columns.map((column) => wrapLongPdfText(row[column])),
+            ),
           ],
+          dontBreakRows: true,
+          keepWithHeaderRows: 1,
+        },
+        layout: {
+          hLineColor: () => `#${EXPORT_COLORS.border}`,
+          vLineColor: () => `#${EXPORT_COLORS.border}`,
+          fillColor: (rowIndex: number) =>
+            rowIndex > 0 && rowIndex % 2 === 0 ? `#${EXPORT_COLORS.paleBlue}` : null,
+          paddingLeft: () => 5,
+          paddingRight: () => 5,
+          paddingTop: () => 4,
+          paddingBottom: () => 4,
         },
       },
     ],
-    styles: { header: { fontSize: 14, bold: true, margin: [0, 0, 0, 8] } },
+    styles: {
+      title: {
+        fontSize: 16,
+        bold: true,
+        color: `#${EXPORT_COLORS.navy}`,
+        margin: [0, 0, 0, 4],
+      },
+      generated: {
+        fontSize: 8,
+        color: `#${EXPORT_COLORS.muted}`,
+        margin: [0, 0, 0, 12],
+      },
+      tableHeader: {
+        bold: true,
+        fontSize: report.columns.length > 10 ? 7 : 8,
+        color: `#${EXPORT_COLORS.white}`,
+        fillColor: `#${EXPORT_COLORS.blue}`,
+      },
+    },
+    footer: (currentPage: number, pageCount: number) => ({
+      text: `${currentPage} / ${pageCount}`,
+      alignment: 'right',
+      color: `#${EXPORT_COLORS.muted}`,
+      fontSize: 8,
+      margin: [0, 12, 32, 0],
+    }),
   } as TDocumentDefinitions;
   return Buffer.from(await pdfMake.createPdf(definition).getBuffer());
 }

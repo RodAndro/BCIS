@@ -76,7 +76,9 @@ export const paymentsRoutes: FastifyPluginAsync = async (app) => {
     { config: { auth: { authenticated: true, permission: PERMISSIONS.PAYMENT_CREATE } } },
     async (request, reply) => {
       const input = parseInput(createPaymentSchema, request.body);
-      return reply.code(201).send(successBody(await capturePayment(app.db, input, actorContextOf(request))));
+      return reply
+        .code(201)
+        .send(successBody(await capturePayment(app.db, input, actorContextOf(request))));
     },
   );
 
@@ -86,7 +88,9 @@ export const paymentsRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { id } = parseInput(paymentIdParamSchema, request.params);
       const input = parseInput(verifyPaymentSchema, request.body);
-      return reply.send(successBody(await verifyPayment(app.db, id, input, actorContextOf(request))));
+      return reply.send(
+        successBody(await verifyPayment(app.db, id, input, actorContextOf(request))),
+      );
     },
   );
 
@@ -96,7 +100,9 @@ export const paymentsRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const { id } = parseInput(paymentIdParamSchema, request.params);
       const input = parseInput(reversePaymentSchema, request.body);
-      return reply.send(successBody(await reversePayment(app.db, id, input, actorContextOf(request))));
+      return reply.send(
+        successBody(await reversePayment(app.db, id, input, actorContextOf(request))),
+      );
     },
   );
 };

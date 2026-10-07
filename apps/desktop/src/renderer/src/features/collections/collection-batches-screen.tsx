@@ -1,5 +1,6 @@
 import type { CollectionBatchDetail } from '@bcis/validation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { StatusPill } from '@renderer/components/status-pill';
 import { Button } from '@renderer/components/ui/button';
 import { Alert, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@renderer/components/ui/table';
@@ -74,11 +75,12 @@ export function CollectionBatchesScreen(): JSX.Element {
               <Th align="right">Expected</Th>
               <Th align="right">Collected</Th>
               <Th align="right">Remitted</Th>
+              <Th>Variance</Th>
               <Th>Date</Th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={8}>No collection batches yet.</EmptyRow>}
+            {rows.length === 0 && <EmptyRow colSpan={9}>No collection batches yet.</EmptyRow>}
             {rows.map((batch) => (
               <Tr key={batch.id}>
                 <Td>
@@ -96,6 +98,13 @@ export function CollectionBatchesScreen(): JSX.Element {
                 <Td align="right">{formatMoney(batch.expectedReceivableCentavos)}</Td>
                 <Td align="right">{formatMoney(batch.cashCollectedCentavos)}</Td>
                 <Td align="right">{formatMoney(batch.remittedCashCentavos)}</Td>
+                <Td>
+                  <BatchVariance
+                    shortageCentavos={batch.shortageCentavos}
+                    overageCentavos={batch.overageCentavos}
+                    status={batch.status}
+                  />
+                </Td>
                 <Td className="whitespace-nowrap text-muted-foreground">{batch.batchDate}</Td>
               </Tr>
             ))}
@@ -104,14 +113,37 @@ export function CollectionBatchesScreen(): JSX.Element {
       </SectionCard>
 
       {detail.data?.item !== undefined && detail.data.item !== null && (
-        <BatchDetail
-          batch={detail.data.item}
-          busy={busy}
-          onAction={action}
-        />
+        <BatchDetail batch={detail.data.item} busy={busy} onAction={action} />
       )}
     </div>
   );
+}
+
+/**
+ * The batch's short/over position, stated in text as well as colour.
+ *
+ * A variance is never hidden: a shortage is red, an overage amber, and only a
+ * batch that has actually been remitted is called balanced.
+ */
+function BatchVariance({
+  shortageCentavos,
+  overageCentavos,
+  status,
+}: {
+  readonly shortageCentavos: number;
+  readonly overageCentavos: number;
+  readonly status: string;
+}): JSX.Element {
+  if (shortageCentavos > 0) {
+    return <StatusPill tone="danger" label={`Short ${formatMoney(shortageCentavos)}`} />;
+  }
+  if (overageCentavos > 0) {
+    return <StatusPill tone="warning" label={`Over ${formatMoney(overageCentavos)}`} />;
+  }
+  if (status === 'REMITTED' || status === 'RECONCILED' || status === 'CLOSED') {
+    return <StatusPill tone="success" label="Balanced" />;
+  }
+  return <span className="text-muted-foreground">—</span>;
 }
 
 function BatchDetail({
@@ -134,13 +166,36 @@ function BatchDetail({
       description={`${batch.collectorName} · ${batch.areaName} · ${batch.batchDate}`}
       actions={
         <div className="flex gap-2">
-          {(lifecycle === 'OPEN') && (
-            <Button size="sm" disabled={busy} onClick={() => void onAction(() => window.bcis.collectionBatches.start(batch.id), 'collection-batches')}>
+          {lifecycle === 'OPEN' && (
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void onAction(
+                  () => window.bcis.collectionBatches.start(batch.id),
+                  'collection-batches',
+                )
+              }
+            >
               Start
             </Button>
           )}
           {(lifecycle === 'OPEN' || lifecycle === 'IN_PROGRESS') && (
-            <Button size="sm" disabled={busy} onClick={() => void onAction(() => window.bcis.collectionBatches.submit(batch.id, { cashCollectedCentavos: batch.cashCollectedCentavos, nonCashCollectedCentavos: batch.nonCashCollectedCentavos, uncollectedCentavos: batch.uncollectedCentavos }), 'collection-batches')}>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void onAction(
+                  () =>
+                    window.bcis.collectionBatches.submit(batch.id, {
+                      cashCollectedCentavos: batch.cashCollectedCentavos,
+                      nonCashCollectedCentavos: batch.nonCashCollectedCentavos,
+                      uncollectedCentavos: batch.uncollectedCentavos,
+                    }),
+                  'collection-batches',
+                )
+              }
+            >
               Submit
             </Button>
           )}
@@ -158,7 +213,9 @@ function BatchDetail({
           </tr>
         </thead>
         <tbody>
-          {batch.accounts.length === 0 && <EmptyRow colSpan={5}>No accounts on this batch.</EmptyRow>}
+          {batch.accounts.length === 0 && (
+            <EmptyRow colSpan={5}>No accounts on this batch.</EmptyRow>
+          )}
           {batch.accounts.map((account) => (
             <Tr key={account.serviceAccountId}>
               <Td className="font-mono text-[13px]">{account.accountNumber}</Td>

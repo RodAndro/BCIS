@@ -149,7 +149,7 @@ export function ServiceAccountManageDialog({
             </Detail>
             <Detail label="Plan rate today">
               {formatMoney(account.planCurrentPriceCentavos)}
-              {drifted && <span className="ml-2 text-[11px] text-amber-700">on an older rate</span>}
+              {drifted && <span className="ml-2 text-[11px] text-warning">on an older rate</span>}
             </Detail>
           </div>
 

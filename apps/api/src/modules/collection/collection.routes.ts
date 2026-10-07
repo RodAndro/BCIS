@@ -13,12 +13,14 @@ import {
   submitCollectionBatchSchema,
   successBody,
   updateCollectionAreaSchema,
+  varianceApprovalSchema,
 } from '@bcis/validation';
 import type { FastifyPluginAsync } from 'fastify';
 
 import { actorContextOf } from '../../shared/request-context';
 import { parseInput } from '../../shared/validate';
 import {
+  approveVariance,
   closeBatch,
   createArea,
   createBatch,
@@ -253,6 +255,22 @@ export const collectionRoutes: FastifyPluginAsync = async (app) => {
       const input = parseInput(batchReconciliationSchema, request.body);
       return reply.send(
         successBody(await reconcileBatch(app.db, id, input, actorContextOf(request))),
+      );
+    },
+  );
+
+  app.post(
+    '/collection-batches/:id/approve-variance',
+    {
+      config: {
+        auth: { authenticated: true, permission: PERMISSIONS.COLLECTION_VARIANCE_APPROVE },
+      },
+    },
+    async (request, reply) => {
+      const { id } = parseInput(collectionBatchIdParamSchema, request.params);
+      const input = parseInput(varianceApprovalSchema, request.body);
+      return reply.send(
+        successBody(await approveVariance(app.db, id, input, actorContextOf(request))),
       );
     },
   );

@@ -1,13 +1,14 @@
 import type { RoleCode } from '@bcis/shared';
-import type { UserSummary } from '@bcis/validation';
+import { MAX_PAGE_SIZE, type UserSummary } from '@bcis/validation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { StatusPill, type StatusTone } from '@renderer/components/status-pill';
+import { Badge } from '@renderer/components/ui/badge';
 import { Button } from '@renderer/components/ui/button';
 import { Alert, PageHeader } from '@renderer/components/ui/feedback';
 import { CheckboxRow, Field, Input, Select } from '@renderer/components/ui/form';
 import { Modal } from '@renderer/components/ui/overlay';
 import { DataTable, EmptyRow, Th, Td, Tr } from '@renderer/components/ui/table';
-import { Pager } from '@renderer/components/ui/pager';
+import { Tabs } from '@renderer/components/ui/tabs';
 import { useAuth } from '@renderer/features/auth/auth-context';
 import { RolesPanel } from '@renderer/features/users/roles-panel';
 import { useRoles } from '@renderer/features/users/use-roles';
@@ -32,8 +33,6 @@ import { useState } from 'react';
 interface UserFilters {
   readonly search: string;
   readonly status: '' | 'ACTIVE' | 'LOCKED' | 'DISABLED';
-  readonly page: number;
-  readonly pageSize: number;
 }
 
 export function UsersScreen(): JSX.Element {
@@ -42,21 +41,18 @@ export function UsersScreen(): JSX.Element {
   const canManage = can('user.manage');
 
   const [tab, setTab] = useState<'users' | 'roles'>('users');
-  const [filters, setFilters] = useState<UserFilters>({
-    search: '',
-    status: '',
-    page: 1,
-    pageSize: 25,
-  });
+  const [filters, setFilters] = useState<UserFilters>({ search: '', status: '' });
 
+  // The list is shown in full rather than paged, so a single request asks for
+  // the API's ceiling instead of the default window.
   const users = useQuery({
     queryKey: ['users', filters],
     queryFn: () =>
       window.bcis.users.list({
         search: filters.search.length > 0 ? filters.search : undefined,
         status: filters.status === '' ? undefined : filters.status,
-        page: filters.page,
-        pageSize: filters.pageSize,
+        page: 1,
+        pageSize: MAX_PAGE_SIZE,
       }),
   });
 
@@ -92,24 +88,14 @@ export function UsersScreen(): JSX.Element {
         }
       />
 
-      <div className="flex gap-1 border-b border-border">
-        <TabButton
-          active={tab === 'users'}
-          onClick={() => {
-            setTab('users');
-          }}
-        >
-          Users
-        </TabButton>
-        <TabButton
-          active={tab === 'roles'}
-          onClick={() => {
-            setTab('roles');
-          }}
-        >
-          Roles &amp; permissions
-        </TabButton>
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'users', label: 'Users' },
+          { value: 'roles', label: 'Roles & permissions' },
+        ]}
+      />
 
       {tab === 'roles' ? (
         <RolesPanel canManage={can('role.manage')} />
@@ -121,7 +107,7 @@ export function UsersScreen(): JSX.Element {
                 placeholder="Search username or name"
                 value={filters.search}
                 onChange={(event) => {
-                  setFilters((current) => ({ ...current, search: event.target.value, page: 1 }));
+                  setFilters((current) => ({ ...current, search: event.target.value }));
                 }}
               />
             </div>
@@ -133,7 +119,6 @@ export function UsersScreen(): JSX.Element {
                   setFilters((current) => ({
                     ...current,
                     status: event.target.value as UserFilters['status'],
-                    page: 1,
                   }));
                 }}
               >
@@ -177,11 +162,7 @@ export function UsersScreen(): JSX.Element {
                 <Tr key={user.id}>
                   <Td>
                     <span className="font-mono text-[13px]">{user.username}</span>
-                    {user.id === state.user?.id && (
-                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        you
-                      </span>
-                    )}
+                    {user.id === state.user?.id && <Badge className="ml-2">you</Badge>}
                   </Td>
                   <Td>{user.fullName}</Td>
                   <Td>{user.roles.map(roleLabel).join(', ') || '—'}</Td>
@@ -226,15 +207,6 @@ export function UsersScreen(): JSX.Element {
               ))}
             </tbody>
           </DataTable>
-
-          <Pager
-            page={filters.page}
-            total={users.data?.total ?? 0}
-            pageSize={filters.pageSize}
-            onChange={(page) => {
-              setFilters((current) => ({ ...current, page }));
-            }}
-          />
         </>
       )}
 
@@ -304,31 +276,6 @@ export function UsersScreen(): JSX.Element {
         </p>
       </Modal>
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  readonly active: boolean;
-  readonly onClick: () => void;
-  readonly children: string;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? 'page' : undefined}
-      className={
-        active
-          ? '-mb-px border-b-2 border-accent px-3 py-2 text-sm font-medium text-foreground'
-          : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
-      }
-    >
-      {children}
-    </button>
   );
 }
 

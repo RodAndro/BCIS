@@ -18,6 +18,8 @@ export const reportTypeSchema = z.enum([
   'COLLECTOR_REMITTANCE',
   'COLLECTOR_VARIANCE',
   'COLLECTOR_PERFORMANCE',
+  'PAYMENT_METHOD_SUMMARY',
+  'REVENUE_BY_PLAN',
   'PAYMENT_ADJUSTMENTS',
   'VOIDED_RECEIPTS',
   'USER_ACTIVITY',
@@ -26,6 +28,10 @@ export type ReportType = z.infer<typeof reportTypeSchema>;
 
 export const reportFormatSchema = z.enum(['json', 'xlsx', 'pdf', 'csv']).default('json');
 export type ReportFormat = z.infer<typeof reportFormatSchema>;
+
+/** The formats a report may be written to a file as. `json` is view-only. */
+export const reportExportFormatSchema = z.enum(['xlsx', 'pdf', 'csv']);
+export type ReportExportFormat = z.infer<typeof reportExportFormatSchema>;
 
 export const reportQuerySchema = paginationQuerySchema.extend({
   type: reportTypeSchema,
@@ -41,6 +47,17 @@ export const reportQuerySchema = paginationQuerySchema.extend({
   format: reportFormatSchema,
 });
 export type ReportQuery = z.infer<typeof reportQuerySchema>;
+
+/**
+ * A request to write a report to a file.
+ *
+ * The same filters as a report view, but the format must be one that can be
+ * saved — a JSON export would be a file nobody can open.
+ */
+export const reportExportSchema = reportQuerySchema.extend({
+  format: reportExportFormatSchema,
+});
+export type ReportExportRequest = z.infer<typeof reportExportSchema>;
 
 export const receiptIdParamSchema = z.object({ id: z.coerce.number().int().positive() });
 

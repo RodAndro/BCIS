@@ -4,7 +4,7 @@ import { StatusPill, type StatusTone } from '@renderer/components/status-pill';
 import { Button } from '@renderer/components/ui/button';
 import { Alert, PageHeader } from '@renderer/components/ui/feedback';
 import { Input, Select } from '@renderer/components/ui/form';
-import { Pager } from '@renderer/components/ui/pager';
+import { DEFAULT_PAGE_SIZE, Pager } from '@renderer/components/ui/pager';
 import { DataTable, EmptyRow, Th, Td, Tr } from '@renderer/components/ui/table';
 import { useAuth } from '@renderer/features/auth/auth-context';
 import {
@@ -51,7 +51,7 @@ export function SubscriberListScreen({ onOpen, onNew }: SubscriberListScreenProp
     status: '',
     collectionAreaId: '',
     page: 1,
-    pageSize: 25,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
 
   const subscribers = useQuery({
@@ -200,10 +200,15 @@ export function SubscriberListScreen({ onOpen, onNew }: SubscriberListScreenProp
 
       <Pager
         page={filters.page}
-        total={subscribers.data?.total ?? 0}
         pageSize={filters.pageSize}
+        total={subscribers.data?.total ?? 0}
         onChange={(page) => {
           setFilters((current) => ({ ...current, page }));
+        }}
+        onPageSizeChange={(pageSize) => {
+          // Back to the first page: page 4 of a 30-row page size is not a
+          // meaningful place to be once the page holds 10 rows.
+          setFilters((current) => ({ ...current, pageSize, page: 1 }));
         }}
       />
     </div>

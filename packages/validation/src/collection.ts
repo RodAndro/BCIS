@@ -7,6 +7,7 @@ import {
   centavosSchema,
   idSchema,
   noteSchema,
+  reasonSchema,
   shortTextSchema,
 } from './primitives';
 
@@ -127,6 +128,20 @@ export const closeCollectionBatchSchema = z.object({
 });
 
 export type CloseCollectionBatchInput = z.infer<typeof closeCollectionBatchSchema>;
+
+/**
+ * Approve a non-zero remittance variance.
+ *
+ * A shortage or overage is a first-class recorded state, not something to be
+ * reconciled away silently. Recording the decision requires a reason and the
+ * `collection.variance.approve` permission, and a batch carrying an unapproved
+ * variance cannot be closed.
+ */
+export const varianceApprovalSchema = z.object({
+  resolutionNotes: reasonSchema,
+});
+
+export type VarianceApprovalInput = z.infer<typeof varianceApprovalSchema>;
 
 /**
  * A person who can be assigned to collect.

@@ -39,7 +39,8 @@ export function ReceivePaymentScreen(): JSX.Element {
 
   const accounts = useQuery({
     queryKey: ['service-accounts', subscriberId],
-    queryFn: () => window.bcis.serviceAccounts.list({ subscriberId: subscriberId ?? 0, page: 1, pageSize: 100 }),
+    queryFn: () =>
+      window.bcis.serviceAccounts.list({ subscriberId: subscriberId ?? 0, page: 1, pageSize: 100 }),
     enabled: subscriberId !== null,
   });
 
@@ -269,7 +270,9 @@ export function ReceivePaymentScreen(): JSX.Element {
             </thead>
             <tbody>
               {preview.allocations.length === 0 && (
-                <EmptyRow colSpan={2}>No open invoices — the full amount becomes account credit.</EmptyRow>
+                <EmptyRow colSpan={2}>
+                  No open invoices — the full amount becomes account credit.
+                </EmptyRow>
               )}
               {preview.allocations.map((line) => (
                 <Tr key={line.invoiceId}>
@@ -286,7 +289,9 @@ export function ReceivePaymentScreen(): JSX.Element {
           {preview.unappliedCentavos > 0 && (
             <div className="mt-1 flex justify-between text-sm">
               <span className="text-muted-foreground">Unapplied credit</span>
-              <span className="font-medium tabular-nums">{formatMoney(preview.unappliedCentavos)}</span>
+              <span className="font-medium tabular-nums">
+                {formatMoney(preview.unappliedCentavos)}
+              </span>
             </div>
           )}
         </SectionCard>

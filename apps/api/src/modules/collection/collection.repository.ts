@@ -468,6 +468,52 @@ export async function insertReconciliation(
   await tx.insert(schema.collectionReconciliations).values(values);
 }
 
+export interface RemittanceVarianceRow {
+  readonly id: number;
+  readonly remittedCashCentavos: number;
+  readonly varianceCentavos: number;
+  readonly varianceType: string;
+  readonly resolutionNotes: string | null;
+  readonly approvedBy: number | null;
+}
+
+export async function findRemittanceByBatch(
+  db: Executor,
+  batchId: number,
+): Promise<RemittanceVarianceRow | null> {
+  const rows = await db
+    .select({
+      id: schema.collectorRemittances.id,
+      remittedCashCentavos: schema.collectorRemittances.remittedCashCentavos,
+      varianceCentavos: schema.collectorRemittances.varianceCentavos,
+      varianceType: schema.collectorRemittances.varianceType,
+      resolutionNotes: schema.collectorRemittances.resolutionNotes,
+      approvedBy: schema.collectorRemittances.approvedBy,
+    })
+    .from(schema.collectorRemittances)
+    .where(eq(schema.collectorRemittances.batchId, batchId))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/** Record the supervisor's decision on a short/over remittance. */
+export async function approveRemittanceVariance(
+  tx: Tx,
+  remittanceId: number,
+  values: { readonly resolutionNotes: string; readonly approvedBy: number },
+): Promise<void> {
+  await tx
+    .update(schema.collectorRemittances)
+    .set({
+      resolutionNotes: values.resolutionNotes,
+      approvedBy: values.approvedBy,
+      updatedAt: new Date(),
+      updatedBy: values.approvedBy,
+    })
+    .where(eq(schema.collectorRemittances.id, remittanceId));
+}
+
 export async function findCollectorAssignment(
   db: Executor,
   areaId: number,
@@ -588,7 +634,8 @@ export async function listCollectionBatches(
   offset: number,
 ): Promise<readonly CollectionBatchSummaryRow[]> {
   const conditions: SQL[] = [];
-  if (query.status !== undefined) conditions.push(eq(schema.collectionBatches.status, query.status));
+  if (query.status !== undefined)
+    conditions.push(eq(schema.collectionBatches.status, query.status));
   if (query.collectorUserId !== undefined) {
     conditions.push(eq(schema.collectionBatches.collectorUserId, query.collectorUserId));
   }
@@ -608,7 +655,8 @@ export async function countCollectionBatches(
   query: CollectionBatchListQuery,
 ): Promise<number> {
   const conditions: SQL[] = [];
-  if (query.status !== undefined) conditions.push(eq(schema.collectionBatches.status, query.status));
+  if (query.status !== undefined)
+    conditions.push(eq(schema.collectionBatches.status, query.status));
   if (query.collectorUserId !== undefined) {
     conditions.push(eq(schema.collectionBatches.collectorUserId, query.collectorUserId));
   }

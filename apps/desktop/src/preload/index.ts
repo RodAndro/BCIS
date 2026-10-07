@@ -111,6 +111,7 @@ const bridge: BcisBridge = {
   reports: {
     dashboard: () => ipcRenderer.invoke(IPC_CHANNELS.REPORTS_DASHBOARD),
     get: (query) => ipcRenderer.invoke(IPC_CHANNELS.REPORTS_GET, query),
+    export: (request) => ipcRenderer.invoke(IPC_CHANNELS.REPORTS_EXPORT, request),
   },
   search: {
     providers: () => ipcRenderer.invoke(IPC_CHANNELS.SEARCH_PROVIDERS),
@@ -144,7 +145,7 @@ const bridge: BcisBridge = {
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_GET, { id }),
     preview: (input) => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_PREVIEW, input),
     create: (input) => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_CREATE, input),
-    pending: () => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_PENDING),
+    pending: (query) => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_PENDING, query),
     verify: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_VERIFY, { id, input }),
     reverse: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.PAYMENTS_REVERSE, { id, input }),
   },
@@ -153,7 +154,8 @@ const bridge: BcisBridge = {
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_GET, { id }),
     create: (input) => ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_CREATE, input),
     start: (id) => ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_START, { id }),
-    submit: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_SUBMIT, { id, input }),
+    submit: (id, input) =>
+      ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_SUBMIT, { id, input }),
     remit: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_REMIT, { id, input }),
     reconcile: (id, input) =>
       ipcRenderer.invoke(IPC_CHANNELS.COLLECTION_BATCHES_RECONCILE, { id, input }),

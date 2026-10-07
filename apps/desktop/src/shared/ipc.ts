@@ -75,6 +75,7 @@ import type {
   ReceivableSummary,
   SuspensionCandidate,
   Dashboard,
+  ReportExportRequest,
   ReportQuery,
   ReportResult,
 } from '@bcis/validation';
@@ -184,6 +185,7 @@ export const IPC_CHANNELS = {
   RECEIVABLES_CANDIDATES: 'receivables:candidates',
   REPORTS_DASHBOARD: 'reports:dashboard',
   REPORTS_GET: 'reports:get',
+  REPORTS_EXPORT: 'reports:export',
 
   // --- Phase 5: payments ----------------------------------------------------
   PAYMENTS_LIST: 'payments:list',
@@ -313,6 +315,20 @@ export interface ResetPasswordResult {
   readonly temporaryPassword: string;
 }
 
+/**
+ * The outcome of writing a report to disk.
+ *
+ * `filePath` is set only on success; a cancelled save dialog is reported as a
+ * failure with `CANCELLED` so the renderer never treats "the user changed their
+ * mind" as a written file.
+ */
+export interface ReportExportResult {
+  readonly ok: boolean;
+  readonly error: string | null;
+  readonly errorCode: string | null;
+  readonly filePath: string | null;
+}
+
 /** The complete surface exposed to the renderer as `window.bcis`. */
 export interface BcisBridge {
   readonly health: {
@@ -436,6 +452,8 @@ export interface BcisBridge {
   readonly reports: {
     readonly dashboard: () => Promise<ItemResult<Dashboard>>;
     readonly get: (query: ReportQuery) => Promise<ItemResult<ReportResult>>;
+    /** Writes the report to a file the user chooses. Never returns a path into the renderer's data. */
+    readonly export: (request: ReportExportRequest) => Promise<ReportExportResult>;
   };
   readonly search: {
     readonly providers: () => Promise<ListResult<SearchProvider>>;
@@ -479,9 +497,12 @@ export interface BcisBridge {
     /** Writes nothing. The confirmation is built from this. */
     readonly preview: (input: CreatePaymentInput) => Promise<ItemResult<PaymentPreview>>;
     readonly create: (input: CreatePaymentInput) => Promise<ItemResult<PaymentDetail>>;
-    readonly pending: () => Promise<ListResult<PaymentSummary>>;
+    readonly pending: (query: Partial<PaymentListQuery>) => Promise<ListResult<PaymentSummary>>;
     readonly verify: (id: number, input: VerifyPaymentInput) => Promise<ItemResult<PaymentDetail>>;
-    readonly reverse: (id: number, input: ReversePaymentInput) => Promise<ItemResult<PaymentDetail>>;
+    readonly reverse: (
+      id: number,
+      input: ReversePaymentInput,
+    ) => Promise<ItemResult<PaymentDetail>>;
   };
 
   // ── Phase 6 ──────────────────────────────────────────────────────────────
@@ -508,7 +529,10 @@ export interface BcisBridge {
       id: number,
       input: BatchReconciliationInput,
     ) => Promise<ItemResult<{ differenceCentavos: number; status: string }>>;
-    readonly close: (id: number, input: CloseCollectionBatchInput) => Promise<ItemResult<{ status: string }>>;
+    readonly close: (
+      id: number,
+      input: CloseCollectionBatchInput,
+    ) => Promise<ItemResult<{ status: string }>>;
   };
   readonly collectionAssignments: {
     readonly list: () => Promise<ListResult<CollectorAssignmentSummary>>;
@@ -528,7 +552,9 @@ export interface BcisBridge {
     readonly verify: (
       backupId: string,
     ) => Promise<ItemResult<{ backupId: string; ok: boolean; notes: string }>>;
-    readonly restore: (backupId: string) => Promise<ItemResult<{ backupId: string; status: string }>>;
+    readonly restore: (
+      backupId: string,
+    ) => Promise<ItemResult<{ backupId: string; status: string }>>;
   };
 }
 

@@ -1,31 +1,47 @@
 import type { AgingSummary, ReceivableSummary } from '@bcis/validation';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
+import { Alert, MetricCard, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
+import { CheckboxRow, Select } from '@renderer/components/ui/form';
+import { DEFAULT_PAGE_SIZE, Pager } from '@renderer/components/ui/pager';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@renderer/components/ui/table';
 import { formatMoney } from '@renderer/lib/money';
 import type { JSX } from 'react';
 import { useState } from 'react';
 
+interface Filters {
+  readonly overdueOnly: boolean;
+  readonly agingBucket: ReceivableSummary['agingBucket'] | '';
+  readonly page: number;
+  readonly pageSize: number;
+}
 export function ReceivablesScreen(): JSX.Element {
-  const [overdueOnly, setOverdueOnly] = useState(true);
-  const [agingBucket, setAgingBucket] = useState<ReceivableSummary['agingBucket'] | ''>('');
+  const [filters, setFilters] = useState<Filters>({
+    overdueOnly: true,
+    agingBucket: '',
+    page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
+  const [candidatePage, setCandidatePage] = useState(1);
+  const [candidatePageSize, setCandidatePageSize] = useState(DEFAULT_PAGE_SIZE);
+
   const aging = useQuery({
     queryKey: ['receivables-aging'],
     queryFn: () => window.bcis.receivables.aging(),
   });
   const receivables = useQuery({
-    queryKey: ['receivables', overdueOnly, agingBucket],
+    queryKey: ['receivables', filters],
     queryFn: () =>
       window.bcis.receivables.list({
-        page: 1,
-        pageSize: 100,
-        overdueOnly,
-        ...(agingBucket === '' ? {} : { agingBucket }),
+        page: filters.page,
+        pageSize: filters.pageSize,
+        overdueOnly: filters.overdueOnly,
+        ...(filters.agingBucket === '' ? {} : { agingBucket: filters.agingBucket }),
       }),
   });
   const candidates = useQuery({
-    queryKey: ['receivable-candidates'],
-    queryFn: () => window.bcis.receivables.candidates({ page: 1, pageSize: 100 }),
+    queryKey: ['receivable-candidates', candidatePage, candidatePageSize],
+    queryFn: () =>
+      window.bcis.receivables.candidates({ page: candidatePage, pageSize: candidatePageSize }),
   });
 
   const agingData: AgingSummary | null = aging.data?.item ?? null;
@@ -45,37 +61,45 @@ export function ReceivablesScreen(): JSX.Element {
       )}
       {agingData !== null && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Metric label="Current" value={agingData.currentCentavos} />
-          <Metric label="1–30 days" value={agingData.bucket1To30Centavos} />
-          <Metric label="31–60 days" value={agingData.bucket31To60Centavos} />
-          <Metric label="61–90 days" value={agingData.bucket61To90Centavos} />
-          <Metric label="90+ days" value={agingData.bucket90PlusCentavos} />
+          <MetricCard label="Current" value={formatMoney(agingData.currentCentavos)} />
+          <MetricCard label="1–30 days" value={formatMoney(agingData.bucket1To30Centavos)} />
+          <MetricCard label="31–60 days" value={formatMoney(agingData.bucket31To60Centavos)} />
+          <MetricCard label="61–90 days" value={formatMoney(agingData.bucket61To90Centavos)} />
+          <MetricCard label="90+ days" value={formatMoney(agingData.bucket90PlusCentavos)} />
         </div>
       )}
       <SectionCard
         title="Overdue follow-up"
         description="Filtered on the server and ordered by oldest unpaid invoice."
       >
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={overdueOnly}
-              onChange={(event) => setOverdueOnly(event.target.checked)}
-            />{' '}
-            Overdue only
-          </label>
-          <select
-            className="h-9 rounded-md border border-border bg-surface px-3 text-sm"
-            value={agingBucket}
-            onChange={(event) => setAgingBucket(event.target.value as typeof agingBucket)}
-          >
-            <option value="">All aging buckets</option>
-            <option value="1_30">1–30</option>
-            <option value="31_60">31–60</option>
-            <option value="61_90">61–90</option>
-            <option value="90_PLUS">90+</option>
-          </select>
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <CheckboxRow
+            checked={filters.overdueOnly}
+            onChange={(checked) => {
+              setFilters((current) => ({ ...current, overdueOnly: checked, page: 1 }));
+            }}
+            label="Overdue only"
+          />
+
+          <div className="w-44">
+            <Select
+              aria-label="Aging bucket"
+              value={filters.agingBucket}
+              onChange={(event) => {
+                setFilters((current) => ({
+                  ...current,
+                  agingBucket: event.target.value as Filters['agingBucket'],
+                  page: 1,
+                }));
+              }}
+            >
+              <option value="">All aging buckets</option>
+              <option value="1_30">1–30</option>
+              <option value="31_60">31–60</option>
+              <option value="61_90">61–90</option>
+              <option value="90_PLUS">90+</option>
+            </Select>
+          </div>
         </div>
         <DataTable className="border-0">
           <thead>
@@ -97,6 +121,19 @@ export function ReceivablesScreen(): JSX.Element {
             ))}
           </tbody>
         </DataTable>
+
+        <Pager
+          className="mt-4"
+          page={filters.page}
+          pageSize={filters.pageSize}
+          total={receivables.data?.total ?? 0}
+          onChange={(page) => {
+            setFilters((current) => ({ ...current, page }));
+          }}
+          onPageSizeChange={(pageSize) => {
+            setFilters((current) => ({ ...current, pageSize, page: 1 }));
+          }}
+        />
       </SectionCard>
       <SectionCard
         title="Suspension candidates"
@@ -127,6 +164,18 @@ export function ReceivablesScreen(): JSX.Element {
             ))}
           </tbody>
         </DataTable>
+
+        <Pager
+          className="mt-4"
+          page={candidatePage}
+          pageSize={candidatePageSize}
+          total={candidates.data?.total ?? 0}
+          onChange={setCandidatePage}
+          onPageSizeChange={(pageSize) => {
+            setCandidatePageSize(pageSize);
+            setCandidatePage(1);
+          }}
+        />
       </SectionCard>
     </div>
   );
@@ -150,14 +199,5 @@ function ReceivableRow({ row }: { readonly row: ReceivableSummary }): JSX.Elemen
         {formatMoney(row.totalArrearsCentavos)}
       </Td>
     </Tr>
-  );
-}
-
-function Metric({ label, value }: { readonly label: string; readonly value: number }): JSX.Element {
-  return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">{formatMoney(value)}</p>
-    </section>
   );
 }

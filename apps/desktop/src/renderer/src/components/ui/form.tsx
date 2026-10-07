@@ -1,5 +1,11 @@
 import { cn } from '@renderer/lib/utils';
-import type { InputHTMLAttributes, JSX, ReactNode, SelectHTMLAttributes } from 'react';
+import type {
+  InputHTMLAttributes,
+  JSX,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from 'react';
 import { useId } from 'react';
 
 /**
@@ -11,9 +17,11 @@ import { useId } from 'react';
  */
 
 const CONTROL_CLASSES = cn(
-  'w-full rounded-md border border-input bg-surface px-2.5 py-1.5 text-sm text-foreground',
-  'placeholder:text-muted-foreground/70',
-  'disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground',
+  'w-full rounded-md border border-input bg-surface px-3 py-2 text-sm text-foreground shadow-sm',
+  'transition-colors placeholder:text-muted-foreground',
+  'hover:border-muted-foreground/50',
+  'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30',
+  'disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground',
 );
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -51,6 +59,20 @@ export function Select({
   );
 }
 
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+  readonly invalid?: boolean;
+}
+
+export function Textarea({ className, invalid = false, ...rest }: TextareaProps): JSX.Element {
+  return (
+    <textarea
+      className={cn(CONTROL_CLASSES, 'resize-y', invalid && 'border-destructive', className)}
+      aria-invalid={invalid || undefined}
+      {...rest}
+    />
+  );
+}
+
 export interface FieldProps {
   readonly label: string;
   readonly hint?: ReactNode;
@@ -64,7 +86,7 @@ export function Field({ label, hint, error, children }: FieldProps): JSX.Element
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-xs font-medium text-foreground">
+      <label htmlFor={id} className="text-xs font-semibold text-foreground">
         {label}
       </label>
 
@@ -105,7 +127,7 @@ export function CheckboxRow({
         onChange={(event) => {
           onChange(event.target.checked);
         }}
-        className="mt-0.5 size-4 shrink-0 rounded border-input text-accent"
+        className="mt-0.5 size-4 shrink-0 rounded border-input accent-accent"
       />
       <span>{label}</span>
     </label>

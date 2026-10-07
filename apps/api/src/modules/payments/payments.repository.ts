@@ -1,5 +1,18 @@
 import { schema } from '@bcis/database';
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 
 import type { Executor, Tx } from '../../shared/database';
 import type { PaymentListQuery } from '@bcis/validation';
@@ -102,8 +115,10 @@ function buildPaymentFilters(query: PaymentListQuery): SQL | undefined {
   if (query.serviceAccountId !== undefined) {
     conditions.push(eq(schema.payments.serviceAccountId, query.serviceAccountId));
   }
-  if (query.from !== undefined) conditions.push(gte(schema.payments.paymentDate, sql`${query.from}::date`));
-  if (query.to !== undefined) conditions.push(lte(schema.payments.paymentDate, sql`${query.to}::date`));
+  if (query.from !== undefined)
+    conditions.push(gte(schema.payments.paymentDate, sql`${query.from}::date`));
+  if (query.to !== undefined)
+    conditions.push(lte(schema.payments.paymentDate, sql`${query.to}::date`));
   if (query.search !== undefined && query.search.length > 0) {
     const pattern = `%${query.search}%`;
     const search = or(
@@ -247,6 +262,36 @@ export async function insertReceipt(
 }
 
 /**
+ * Void the receipt issued for a payment.
+ *
+ * This is the only permitted change to an issued receipt (see the
+ * `enforce_receipt_immutability` trigger): the number stays reserved and is
+ * never reissued, and the reason is the one supplied by the reversal. Returns
+ * the voided receipt id, or `null` when the payment never produced one.
+ */
+export async function voidReceiptForPayment(
+  tx: Tx,
+  paymentId: number,
+  reason: string,
+  actorId: number,
+): Promise<number | null> {
+  const rows = await tx
+    .update(schema.receipts)
+    .set({
+      status: 'VOID',
+      voidedAt: new Date(),
+      voidedBy: actorId,
+      voidReason: reason,
+      updatedAt: new Date(),
+      updatedBy: actorId,
+    })
+    .where(and(eq(schema.receipts.paymentId, paymentId), eq(schema.receipts.status, 'ISSUED')))
+    .returning({ id: schema.receipts.id });
+
+  return rows[0]?.id ?? null;
+}
+
+/**
  * Apply a payment allocation to an invoice's maintained caches.
  *
  * The cache columns (`paid_centavos`, `balance_centavos`) and the lifecycle
@@ -374,9 +419,7 @@ export async function insertReversal(tx: Tx, values: InsertReversalValues): Prom
   await tx.insert(schema.paymentReversals).values(values);
 }
 
-export async function listPendingVerification(
-  db: Executor,
-): Promise<readonly PaymentRow[]> {
+export async function listPendingVerification(db: Executor): Promise<readonly PaymentRow[]> {
   return basePaymentQuery(db)
     .where(eq(schema.payments.status, 'PENDING_VERIFICATION'))
     .orderBy(asc(schema.payments.paymentDate), asc(schema.payments.id));

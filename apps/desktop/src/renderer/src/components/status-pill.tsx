@@ -13,20 +13,20 @@ import type { JSX } from 'react';
 export type StatusTone = 'success' | 'warning' | 'danger' | 'neutral' | 'pending';
 
 const TONE_CLASSES: Record<StatusTone, string> = {
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  warning: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  danger: 'bg-red-50 text-red-700 ring-red-600/20',
-  pending: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-  neutral: 'bg-slate-100 text-slate-600 ring-slate-500/20',
+  success: 'bg-success font-semibold text-white ring-success/70',
+  warning: 'bg-warning/15 text-warning ring-warning/30',
+  danger: 'bg-destructive/15 text-destructive ring-destructive/30',
+  pending: 'bg-info/15 text-info ring-info/30',
+  neutral: 'bg-muted text-muted-foreground ring-border',
 };
 
 /** The dot colour, paired with the label so the meaning never rests on it. */
 const DOT_CLASSES: Record<StatusTone, string> = {
-  success: 'bg-emerald-600',
-  warning: 'bg-amber-600',
-  danger: 'bg-red-600',
-  pending: 'bg-blue-600',
-  neutral: 'bg-slate-400',
+  success: 'bg-white',
+  warning: 'bg-warning',
+  danger: 'bg-destructive',
+  pending: 'bg-info',
+  neutral: 'bg-muted-foreground/60',
 };
 
 interface StatusPillProps {

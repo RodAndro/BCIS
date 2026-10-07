@@ -33,6 +33,28 @@ export interface ApiResult<T> {
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 
+/**
+ * The result of a binary fetch.
+ *
+ * A dedicated union rather than `ApiResult<Uint8Array>` so the bytes are
+ * non-nullable on success — a caller writing an export file must never be
+ * handed a `null` it could quietly turn into an empty document.
+ */
+export type ApiByteResult =
+  | {
+      readonly ok: true;
+      readonly status: number;
+      readonly data: Uint8Array;
+      readonly latencyMs: number;
+    }
+  | {
+      readonly ok: false;
+      readonly status: number;
+      readonly error: string;
+      readonly errorCode: string | null;
+      readonly latencyMs: number;
+    };
+
 export class ApiClient {
   private token: string | null = null;
 
@@ -52,6 +74,60 @@ export class ApiClient {
 
   async get<T>(path: string): Promise<ApiResult<T>> {
     return this.request<T>(path, { method: 'GET' });
+  }
+
+  /**
+   * Fetch a binary body, such as a report export.
+   *
+   * `request` parses JSON, which a spreadsheet or a PDF is not — feeding one to
+   * `response.json()` yields `null` and a silent empty file. This returns the
+   * raw bytes instead, with a caller-supplied timeout: generating a large
+   * report legitimately takes longer than loading a screen, and a truncated
+   * download is worse than a slow one.
+   */
+  async getBytes(path: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<ApiByteResult> {
+    const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    const startedAt = performance.now();
+
+    const headers: Record<string, string> = {
+      accept: '*/*',
+      ...(this.token === null ? {} : { authorization: `Bearer ${this.token}` }),
+    };
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      const latencyMs = Math.round(performance.now() - startedAt);
+
+      if (!response.ok) {
+        const payload = await readJson(response);
+        return {
+          ok: false,
+          status: response.status,
+          error: describeFailure(payload, response.status),
+          errorCode: readErrorCode(payload),
+          latencyMs,
+        };
+      }
+
+      const data = new Uint8Array(await response.arrayBuffer());
+      return { ok: true, status: response.status, data, latencyMs };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        error:
+          error instanceof Error && error.name === 'TimeoutError'
+            ? `The API did not respond within ${String(timeoutMs)} ms.`
+            : 'The API is not reachable.',
+        errorCode: 'API_UNREACHABLE',
+        latencyMs: Math.round(performance.now() - startedAt),
+      };
+    }
   }
 
   async post<T>(path: string, body?: unknown): Promise<ApiResult<T>> {

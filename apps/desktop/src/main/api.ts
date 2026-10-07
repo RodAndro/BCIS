@@ -107,6 +107,37 @@ export async function callApi<T>(
 }
 
 /**
+ * How long a report export may take before it is abandoned.
+ *
+ * Longer than a normal request because PDF/XLSX generation runs server-side
+ * over the full result set, and a large report is not a hang.
+ */
+const EXPORT_TIMEOUT_MS = 60_000;
+
+/** Fetch an export's raw bytes, normalising failures the same way `callApi` does. */
+export async function callApiBytes(
+  path: string,
+): Promise<{ readonly ok: true; readonly data: Uint8Array } | ApiFailure> {
+  const result = await client.getBytes(path, EXPORT_TIMEOUT_MS);
+
+  if (!result.ok) {
+    if (result.status === 401) {
+      setSessionToken(null);
+    }
+
+    return {
+      ok: false,
+      status: result.status,
+      error: result.error ?? 'The request failed.',
+      errorCode: result.errorCode,
+      latencyMs: result.latencyMs,
+    };
+  }
+
+  return { ok: true, data: result.data };
+}
+
+/**
  * Validate a payload that arrived from the renderer.
  *
  * The renderer is not trusted: `window.bcis.users.create({...})` can be called

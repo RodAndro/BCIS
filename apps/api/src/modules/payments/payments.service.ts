@@ -1,8 +1,4 @@
-import {
-  allocateAsDirected,
-  allocateOldestFirst,
-  type AllocatableInvoice,
-} from '@bcis/domain';
+import { allocateAsDirected, allocateOldestFirst, type AllocatableInvoice } from '@bcis/domain';
 import {
   ConflictError,
   NotFoundError,
@@ -50,7 +46,10 @@ export interface PaymentPage {
   readonly total: number;
 }
 
-async function loadAllocatable(db: Db, serviceAccountId: number): Promise<readonly AllocatableInvoice[]> {
+async function loadAllocatable(
+  db: Db,
+  serviceAccountId: number,
+): Promise<readonly AllocatableInvoice[]> {
   const rows = await repository.listOpenInvoices(db, serviceAccountId);
   return rows.map((row) => ({
     invoiceId: row.invoiceId,
@@ -64,7 +63,11 @@ async function loadAllocatable(db: Db, serviceAccountId: number): Promise<readon
 async function planAllocation(
   db: Db,
   input: CreatePaymentInput,
-): Promise<{ applied: number; unapplied: number; lines: readonly { invoiceId: number; amount: number }[] }> {
+): Promise<{
+  applied: number;
+  unapplied: number;
+  lines: readonly { invoiceId: number; amount: number }[];
+}> {
   const amount = centavos(input.amountCentavos);
   const invoices = await loadAllocatable(db, input.serviceAccountId);
 
@@ -85,7 +88,10 @@ async function planAllocation(
       return {
         applied: result.applied,
         unapplied: result.unapplied,
-        lines: result.allocations.map((line) => ({ invoiceId: line.invoiceId, amount: line.amount })),
+        lines: result.allocations.map((line) => ({
+          invoiceId: line.invoiceId,
+          amount: line.amount,
+        })),
       };
     } catch (error) {
       throw new ValidationError(
@@ -155,7 +161,11 @@ async function requireAccount(
       field: 'serviceAccountId',
     });
   }
-  return { id: account.id, subscriberId: account.subscriberId, accountNumber: account.accountNumber };
+  return {
+    id: account.id,
+    subscriberId: account.subscriberId,
+    accountNumber: account.accountNumber,
+  };
 }
 
 function assertMethodRules(input: CreatePaymentInput): void {
@@ -450,6 +460,27 @@ export async function reversePayment(
     });
 
     await repository.markPaymentReversed(tx, paymentId, actor.userId);
+
+    // The receipt a customer holds must stop resolving to a live sale. It is
+    // voided, not deleted, and its number stays reserved forever.
+    const voidedReceiptId = await repository.voidReceiptForPayment(
+      tx,
+      paymentId,
+      input.reason,
+      actor.userId,
+    );
+    if (voidedReceiptId !== null) {
+      await writeAudit(tx, {
+        action: AUDIT_ACTIONS.RECEIPT_VOIDED,
+        entityType: AUDIT_ENTITIES.RECEIPT,
+        entityId: String(voidedReceiptId),
+        actorUserId: actor.userId,
+        sessionId: actor.sessionId,
+        ip: actor.ip,
+        reason: input.reason,
+        newValues: { status: 'VOID', paymentId },
+      });
+    }
 
     await writeAudit(tx, {
       action: AUDIT_ACTIONS.PAYMENT_REVERSED,

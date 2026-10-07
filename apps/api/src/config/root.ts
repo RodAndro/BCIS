@@ -41,3 +41,21 @@ export function repoEnvPath(root: string = findRepoRoot()): string {
 export function databasePackagePath(root: string = findRepoRoot()): string {
   return resolve(root, 'database');
 }
+
+/**
+ * Resolve a filesystem setting from `.env` to an absolute path.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+ * `.env.example` writes these settings in repository-root terms
+ * (`BACKUP_ROOT=data/backups`, `POSTGRES_BIN_DIR=.runtime/pgsql/bin`). A bare
+ * `resolve(value)` resolves against the process's current directory instead,
+ * and the API runs with `apps/api` as its working directory — so every one of
+ * these pointed a directory too deep and `pg_dump` came back `ENOENT`, failing
+ * every backup with a message about a path that was never configured.
+ *
+ * Anchoring them here means the setting means the same thing however the
+ * process was started. An already-absolute value is returned unchanged.
+ */
+export function repoPath(value: string, root: string = findRepoRoot()): string {
+  return resolve(root, value);
+}

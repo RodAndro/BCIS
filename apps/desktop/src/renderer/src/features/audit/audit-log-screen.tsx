@@ -4,7 +4,7 @@ import { Button } from '@renderer/components/ui/button';
 import { Alert, PageHeader } from '@renderer/components/ui/feedback';
 import { Field, Input, Select } from '@renderer/components/ui/form';
 import { Modal } from '@renderer/components/ui/overlay';
-import { Pager } from '@renderer/components/ui/pager';
+import { DEFAULT_PAGE_SIZE, Pager } from '@renderer/components/ui/pager';
 import { DataTable, EmptyRow, Th, Td, Tr } from '@renderer/components/ui/table';
 import { formatInstant } from '@renderer/lib/format';
 import type { JSX } from 'react';
@@ -52,7 +52,7 @@ export function AuditLogScreen(): JSX.Element {
     from: '',
     to: '',
     page: 1,
-    pageSize: 50,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
   const [detail, setDetail] = useState<AuditEntry | null>(null);
 
@@ -198,10 +198,13 @@ export function AuditLogScreen(): JSX.Element {
 
       <Pager
         page={filters.page}
-        total={audit.data?.total ?? 0}
         pageSize={filters.pageSize}
+        total={audit.data?.total ?? 0}
         onChange={(page) => {
           setFilters((current) => ({ ...current, page }));
+        }}
+        onPageSizeChange={(pageSize) => {
+          setFilters((current) => ({ ...current, pageSize, page: 1 }));
         }}
       />
 

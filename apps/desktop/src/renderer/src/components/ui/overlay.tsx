@@ -53,14 +53,14 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-6">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`mt-10 w-full ${WIDTHS[width]} rounded-lg border border-border bg-surface shadow-xl`}
+        className={`mt-10 w-full ${WIDTHS[width]} rounded-xl border border-border bg-popover text-popover-foreground shadow-popover`}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-3">
+        <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">{title}</h2>
             {description !== undefined && (
@@ -72,10 +72,10 @@ export function Modal({
           </Button>
         </header>
 
-        <div className="px-5 py-4">{children}</div>
+        <div className="px-6 py-5">{children}</div>
 
         {footer !== undefined && (
-          <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+          <footer className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
             {footer}
           </footer>
         )}

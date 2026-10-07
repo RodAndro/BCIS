@@ -4,6 +4,7 @@ import { StatusPill } from '@renderer/components/status-pill';
 import { Button } from '@renderer/components/ui/button';
 import { Alert, SectionCard } from '@renderer/components/ui/feedback';
 import { DataTable, EmptyRow, Th, Td, Tr } from '@renderer/components/ui/table';
+import { Tabs } from '@renderer/components/ui/tabs';
 import { statusTone } from '@renderer/features/subscribers/service-account-manage-dialog';
 import { ServiceAccountDialog } from '@renderer/features/subscribers/service-account-dialog';
 import { ServiceAccountManageDialog } from '@renderer/features/subscribers/service-account-manage-dialog';
@@ -122,48 +123,17 @@ export function SubscriberProfileScreen({
         </div>
       </header>
 
-      <div className="flex gap-1 border-b border-border">
-        <TabButton
-          active={tab === 'overview'}
-          onClick={() => {
-            setTab('overview');
-          }}
-        >
-          Overview
-        </TabButton>
-        <TabButton
-          active={tab === 'services'}
-          onClick={() => {
-            setTab('services');
-          }}
-        >
-          Services ({accountList.length})
-        </TabButton>
-        <TabButton
-          active={tab === 'billing'}
-          onClick={() => {
-            setTab('billing');
-          }}
-        >
-          Billing ({invoiceList.length})
-        </TabButton>
-        <TabButton
-          active={tab === 'ledger'}
-          onClick={() => {
-            setTab('ledger');
-          }}
-        >
-          Ledger
-        </TabButton>
-        <TabButton
-          active={tab === 'history'}
-          onClick={() => {
-            setTab('history');
-          }}
-        >
-          Service history
-        </TabButton>
-      </div>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'services', label: `Services (${String(accountList.length)})` },
+          { value: 'billing', label: `Billing (${String(invoiceList.length)})` },
+          { value: 'ledger', label: 'Ledger' },
+          { value: 'history', label: 'Service history' },
+        ]}
+      />
 
       {tab === 'overview' && (
         <>
@@ -295,7 +265,7 @@ export function SubscriberProfileScreen({
                   <Td align="right">
                     {formatMoney(account.currentPlanPriceCentavos)}
                     {account.currentPlanPriceCentavos !== account.planCurrentPriceCentavos && (
-                      <span className="ml-2 text-[11px] text-amber-700">older rate</span>
+                      <span className="ml-2 text-[11px] text-warning">older rate</span>
                     )}
                   </Td>
                   <Td>
@@ -443,31 +413,6 @@ export function SubscriberProfileScreen({
         }}
       />
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  readonly active: boolean;
-  readonly onClick: () => void;
-  readonly children: ReactNode;
-}): JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active ? 'page' : undefined}
-      className={
-        active
-          ? '-mb-px border-b-2 border-accent px-3 py-2 text-sm font-medium text-foreground'
-          : '-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground'
-      }
-    >
-      {children}
-    </button>
   );
 }
 

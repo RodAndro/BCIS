@@ -6,16 +6,18 @@ import {
   bootBilling,
   makeBillingAccount,
   BILLING_MONTH,
+  type BillingAccount,
   type BillingHarness,
 } from '../helpers/billing';
 
 let harness: BillingHarness;
 let app: FastifyInstance;
+let account: BillingAccount;
 
 beforeAll(async () => {
   harness = await bootBilling();
   app = harness.app;
-  await makeBillingAccount(harness, 'Report Customer');
+  account = await makeBillingAccount(harness, 'Report Customer');
   const generated = await call(app, 'POST', '/billing/generate', harness.admin, {
     month: BILLING_MONTH,
     dryRun: false,
@@ -89,11 +91,53 @@ describe('Phase 8 reports', () => {
     expect(pdf.headers['content-type']).toContain('application/pdf');
     expect(pdf.rawPayload.subarray(0, 4).toString()).toBe('%PDF');
 
+    const csv = await app.inject({
+      method: 'GET',
+      url: '/reports/export?type=SUBSCRIBER_MASTER&format=csv',
+      headers: harness.admin,
+    });
+    expect(csv.statusCode).toBe(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.body).toContain('Report Customer');
+
     const empty = await app.inject({
       method: 'GET',
       url: '/reports/export?type=VOIDED_RECEIPTS&format=xlsx&from=2020-01-01&to=2020-01-02',
       headers: harness.admin,
     });
     expect(empty.statusCode).toBe(200);
+  });
+
+  it('summarises posted payments by method and revenue by plan', async () => {
+    const payment = await call<{ status: string }>(app, 'POST', '/payments', harness.cashier, {
+      subscriberId: account.subscriberId,
+      serviceAccountId: account.accountId,
+      paymentMethod: 'CASH',
+      amountCentavos: 99_900,
+    });
+    expect(payment.status, payment.body).toBe(201);
+
+    const summary = await call<{
+      rows: Array<{ method: string; payments: number; amountCentavos: number }>;
+      totals: Record<string, number>;
+    }>(app, 'GET', '/reports?type=PAYMENT_METHOD_SUMMARY&format=json', harness.admin);
+    expect(summary.status).toBe(200);
+    expect(summary.data.rows.find((row) => row.method === 'CASH')?.amountCentavos).toBe(99_900);
+    expect(summary.data.totals.amountCentavos).toBe(99_900);
+
+    const revenue = await call<{
+      rows: Array<{
+        plan: string;
+        billedCentavos: number;
+        collectedCentavos: number;
+        outstandingCentavos: number;
+      }>;
+    }>(app, 'GET', '/reports?type=REVENUE_BY_PLAN&format=json', harness.admin);
+    expect(revenue.status).toBe(200);
+    expect(revenue.data.rows.find((row) => row.plan === 'Billing Internet 100')).toMatchObject({
+      billedCentavos: 99_900,
+      collectedCentavos: 99_900,
+      outstandingCentavos: 0,
+    });
   });
 });

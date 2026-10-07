@@ -1,31 +1,40 @@
-import type { Dashboard, ReportQuery, ReportResult, ReportType } from '@bcis/validation';
+import type {
+  Dashboard,
+  ReportExportFormat,
+  ReportQuery,
+  ReportResult,
+  ReportType,
+} from '@bcis/validation';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
+import { Button } from '@renderer/components/ui/button';
+import { Alert, MetricCard, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
+import { Select } from '@renderer/components/ui/form';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@renderer/components/ui/table';
+import { useAuth } from '@renderer/features/auth/auth-context';
 import { formatMoney } from '@renderer/lib/money';
 import type { JSX } from 'react';
 import { useState } from 'react';
+import { DashboardCharts } from './dashboard-charts';
+import { ReportTypeSelect } from './report-type-select';
 
-const REPORTS: readonly { value: ReportType; label: string }[] = [
-  { value: 'DAILY_COLLECTION', label: 'Daily collection' },
-  { value: 'WEEKLY_COLLECTION', label: 'Weekly collection' },
-  { value: 'MONTHLY_COLLECTION', label: 'Monthly collection' },
-  { value: 'ANNUAL_COLLECTION', label: 'Annual collection' },
-  { value: 'BILLING_VS_COLLECTION', label: 'Billing vs collection' },
-  { value: 'AR_AGING', label: 'AR aging' },
-  { value: 'OVERDUE_SUBSCRIBERS', label: 'Overdue subscribers' },
-  { value: 'SUBSCRIBER_MASTER', label: 'Subscriber master list' },
-  { value: 'COLLECTOR_COLLECTION', label: 'Collector collection' },
-  { value: 'COLLECTOR_REMITTANCE', label: 'Collector remittance' },
-  { value: 'COLLECTOR_VARIANCE', label: 'Collector variance' },
-  { value: 'COLLECTOR_PERFORMANCE', label: 'Collector performance' },
-  { value: 'PAYMENT_ADJUSTMENTS', label: 'Payment adjustments/reversals' },
-  { value: 'VOIDED_RECEIPTS', label: 'Voided receipts' },
-  { value: 'USER_ACTIVITY', label: 'User activity' },
+const EXPORT_FORMATS: readonly { value: ReportExportFormat; label: string }[] = [
+  { value: 'xlsx', label: 'Excel (.xlsx)' },
+  { value: 'pdf', label: 'PDF (.pdf)' },
+  { value: 'csv', label: 'CSV (.csv)' },
 ];
 
 export function ReportsScreen(): JSX.Element {
+  const { can } = useAuth();
+  const canExport = can('report.export');
+
   const [type, setType] = useState<ReportType>('MONTHLY_COLLECTION');
+  const [exportFormat, setExportFormat] = useState<ReportExportFormat>('xlsx');
+  const [exporting, setExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState<{
+    readonly tone: 'success' | 'danger';
+    readonly text: string;
+  } | null>(null);
+
   const dashboard = useQuery({
     queryKey: ['phase8-dashboard'],
     queryFn: () => window.bcis.reports.dashboard(),
@@ -37,6 +46,32 @@ export function ReportsScreen(): JSX.Element {
   });
   const data: Dashboard | null = dashboard.data?.item ?? null;
   const result: ReportResult | null = report.data?.item ?? null;
+
+  async function exportReport(): Promise<void> {
+    setExporting(true);
+    setExportNotice(null);
+
+    const outcome = await window.bcis.reports.export({
+      type,
+      format: exportFormat,
+      page: 1,
+      pageSize: 100,
+    });
+
+    setExporting(false);
+
+    if (!outcome.ok) {
+      // A cancelled save dialog is not a failure worth shouting about.
+      if (outcome.errorCode === 'CANCELLED') return;
+      setExportNotice({ tone: 'danger', text: outcome.error ?? 'The export failed.' });
+      return;
+    }
+
+    setExportNotice({
+      tone: 'success',
+      text: `Saved to ${outcome.filePath ?? 'the file you chose'}.`,
+    });
+  }
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -51,28 +86,68 @@ export function ReportsScreen(): JSX.Element {
       )}
       {data !== null && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Metric label="Current receivable" value={data.currentReceivableCentavos} />
-          <Metric label="Overdue receivable" value={data.overdueReceivableCentavos} />
-          <Metric label="Billed this period" value={data.billedThisPeriodCentavos} />
-          <Metric label="Collected this period" value={data.collectedThisPeriodCentavos} />
-          <Metric label="Overdue subscribers" value={data.overdueSubscribers} money={false} />
+          <MetricCard
+            label="Current receivable"
+            value={formatMoney(data.currentReceivableCentavos)}
+          />
+          <MetricCard
+            label="Overdue receivable"
+            value={formatMoney(data.overdueReceivableCentavos)}
+          />
+          <MetricCard
+            label="Billed this period"
+            value={formatMoney(data.billedThisPeriodCentavos)}
+          />
+          <MetricCard
+            label="Collected this period"
+            value={formatMoney(data.collectedThisPeriodCentavos)}
+          />
+          <MetricCard label="Overdue subscribers" value={String(data.overdueSubscribers)} />
         </div>
       )}
+      {data !== null && <DashboardCharts dashboard={data} />}
       <SectionCard
         title="Reports"
-        description="Select a report to view its live database result. Exports are available through the API report export endpoint."
+        description="Select a report to view its live database result, then export it to Excel, PDF, or CSV."
       >
-        <select
-          className="mb-4 h-9 rounded-md border border-border bg-surface px-3 text-sm"
-          value={type}
-          onChange={(event) => setType(event.target.value as ReportType)}
-        >
-          {REPORTS.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+        <div className="mb-4 grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_auto]">
+          <ReportTypeSelect value={type} onChange={setType} />
+
+          {canExport && (
+            <Select
+              className="w-full"
+              aria-label="Export format"
+              value={exportFormat}
+              onChange={(event) => setExportFormat(event.target.value as ReportExportFormat)}
+            >
+              {EXPORT_FORMATS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
+          )}
+
+          {canExport && (
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={exporting}
+              onClick={() => {
+                void exportReport();
+              }}
+            >
+              {exporting ? 'Exporting…' : 'Export'}
+            </Button>
+          )}
+        </div>
+
+        {exportNotice !== null && (
+          <div className="mb-4">
+            <Alert tone={exportNotice.tone}>{exportNotice.text}</Alert>
+          </div>
+        )}
+
         {result !== null && (
           <DataTable className="border-0">
             <thead>
@@ -100,24 +175,5 @@ export function ReportsScreen(): JSX.Element {
         )}
       </SectionCard>
     </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  money = true,
-}: {
-  readonly label: string;
-  readonly value: number;
-  readonly money?: boolean;
-}): JSX.Element {
-  return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">
-        {money ? formatMoney(value) : String(value)}
-      </p>
-    </section>
   );
 }

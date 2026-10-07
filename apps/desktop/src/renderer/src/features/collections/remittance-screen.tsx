@@ -1,5 +1,6 @@
 import type { RemittanceSummary } from '@bcis/validation';
 import { useQuery } from '@tanstack/react-query';
+import { StatusPill, type StatusTone } from '@renderer/components/status-pill';
 import { Alert, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@renderer/components/ui/table';
 import { formatMoney } from '@renderer/lib/money';
@@ -37,10 +38,11 @@ export function RemittanceScreen(): JSX.Element {
               <Th align="right">Variance</Th>
               <Th>Result</Th>
               <Th>Received by</Th>
+              <Th>Approved by</Th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={7}>No remittances recorded yet.</EmptyRow>}
+            {rows.length === 0 && <EmptyRow colSpan={8}>No remittances recorded yet.</EmptyRow>}
             {rows.map((remittance) => (
               <RemittanceRow key={remittance.id} remittance={remittance} />
             ))}
@@ -51,13 +53,20 @@ export function RemittanceScreen(): JSX.Element {
   );
 }
 
+const VARIANCE_TONES: Record<RemittanceSummary['varianceType'], StatusTone> = {
+  BALANCED: 'success',
+  SHORTAGE: 'danger',
+  OVERAGE: 'warning',
+};
+
+const VARIANCE_LABELS: Record<RemittanceSummary['varianceType'], string> = {
+  BALANCED: 'Balanced',
+  SHORTAGE: 'Shortage',
+  OVERAGE: 'Overage',
+};
+
 function RemittanceRow({ remittance }: { readonly remittance: RemittanceSummary }): JSX.Element {
-  const varianceLabel =
-    remittance.varianceType === 'BALANCED'
-      ? 'Balanced'
-      : remittance.varianceType === 'SHORTAGE'
-        ? 'Shortage'
-        : 'Overage';
+  const hasVariance = remittance.varianceCentavos !== 0;
 
   return (
     <Tr>
@@ -67,13 +76,25 @@ function RemittanceRow({ remittance }: { readonly remittance: RemittanceSummary 
       <Td align="right" className="font-medium">
         {formatMoney(remittance.remittedCashCentavos)}
       </Td>
-      <Td align="right">
-        {remittance.varianceCentavos === 0
-          ? '—'
-          : formatMoney(remittance.varianceCentavos)}
+      <Td align="right" className={hasVariance ? 'font-medium text-destructive tabular-nums' : ''}>
+        {hasVariance ? formatMoney(remittance.varianceCentavos) : '—'}
       </Td>
-      <Td>{varianceLabel}</Td>
+      <Td>
+        <StatusPill
+          tone={VARIANCE_TONES[remittance.varianceType]}
+          label={VARIANCE_LABELS[remittance.varianceType]}
+        />
+      </Td>
       <Td className="text-muted-foreground">{remittance.receivedByName ?? '—'}</Td>
+      <Td className="text-muted-foreground">
+        {!hasVariance ? (
+          'Not required'
+        ) : remittance.approvedByName !== null ? (
+          remittance.approvedByName
+        ) : (
+          <StatusPill tone="warning" label="Pending approval" />
+        )}
+      </Td>
     </Tr>
   );
 }

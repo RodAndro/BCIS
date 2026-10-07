@@ -4,7 +4,7 @@ import { StatusPill } from '@renderer/components/status-pill';
 import { Button } from '@renderer/components/ui/button';
 import { Alert, PageHeader } from '@renderer/components/ui/feedback';
 import { Input, Select } from '@renderer/components/ui/form';
-import { Pager } from '@renderer/components/ui/pager';
+import { DEFAULT_PAGE_SIZE, Pager } from '@renderer/components/ui/pager';
 import { DataTable, EmptyRow, Th, Td, Tr } from '@renderer/components/ui/table';
 import { statusTone } from '@renderer/features/subscribers/service-account-manage-dialog';
 import { ServiceAccountManageDialog } from '@renderer/features/subscribers/service-account-manage-dialog';
@@ -40,7 +40,7 @@ export function ServiceAccountListScreen({
     status: '',
     serviceType: '',
     page: 1,
-    pageSize: 25,
+    pageSize: DEFAULT_PAGE_SIZE,
   });
   const [managingAccountId, setManagingAccountId] = useState<number | null>(null);
 
@@ -174,7 +174,7 @@ export function ServiceAccountListScreen({
               <Td align="right">
                 {formatMoney(account.currentPlanPriceCentavos)}
                 {account.currentPlanPriceCentavos !== account.planCurrentPriceCentavos && (
-                  <span className="ml-2 text-[11px] text-amber-700">older rate</span>
+                  <span className="ml-2 text-[11px] text-warning">older rate</span>
                 )}
               </Td>
               <Td>
@@ -201,10 +201,13 @@ export function ServiceAccountListScreen({
 
       <Pager
         page={filters.page}
-        total={accounts.data?.total ?? 0}
         pageSize={filters.pageSize}
+        total={accounts.data?.total ?? 0}
         onChange={(page) => {
           setFilters((current) => ({ ...current, page }));
+        }}
+        onPageSizeChange={(pageSize) => {
+          setFilters((current) => ({ ...current, pageSize, page: 1 }));
         }}
       />
 

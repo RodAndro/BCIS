@@ -55,7 +55,10 @@ afterAll(async () => {
   await harness.testDatabase.close();
 });
 
-async function generateInvoice(subscriberId: number, serviceAccountId: number): Promise<InvoiceData> {
+async function generateInvoice(
+  subscriberId: number,
+  serviceAccountId: number,
+): Promise<InvoiceData> {
   await call(harness.app, 'POST', '/billing/generate', harness.admin, {
     month: BILLING_MONTH,
     dryRun: false,
@@ -244,5 +247,59 @@ describe('reversal', () => {
     );
     expect(after.data.status).toBe('UNPAID');
     expect(after.data.balanceCentavos).toBe(99_900);
+
+    // The receipt the customer holds is VOIDED, never deleted, and its number
+    // stays reserved — a reversal is the only route that voids a receipt.
+    const receipt = await harness.testDatabase.pool.query<{
+      status: string;
+      receipt_number: string;
+    }>('SELECT status, receipt_number FROM receipts WHERE payment_id = $1', [payment.data.id]);
+    expect(receipt.rows[0]?.status).toBe('VOID');
+    expect(receipt.rows[0]?.receipt_number).toBe(payment.data.receiptNumber ?? '');
+
+    const voidedReport = await call<{ rows: Array<{ receiptNumber: string }> }>(
+      harness.app,
+      'GET',
+      '/reports?type=VOIDED_RECEIPTS&format=json&from=2020-01-01&to=2030-01-01',
+      harness.admin,
+    );
+    expect(voidedReport.status).toBe(200);
+    expect(
+      voidedReport.data.rows.some((row) => row.receiptNumber === payment.data.receiptNumber),
+    ).toBe(true);
+
+    const auditRows = await harness.testDatabase.pool.query<{ action: string }>(
+      "SELECT action FROM audit_logs WHERE action = 'RECEIPT_VOIDED'",
+    );
+    expect(auditRows.rows.length).toBeGreaterThan(0);
+  });
+});
+
+describe('partial payments', () => {
+  it('leaves the remainder on the invoice and marks it partially paid', async () => {
+    const account = await makeBillingAccount(harness, 'Partial Payer');
+    const invoice = await generateInvoice(account.subscriberId, account.accountId);
+
+    const half = Math.floor(invoice.balanceCentavos / 2);
+    const payment = await capture(
+      harness.cashier,
+      account.subscriberId,
+      account.accountId,
+      'CASH',
+      half,
+    );
+    expect(payment.status, payment.body).toBe(201);
+    expect(payment.data.appliedCentavos).toBe(half);
+    expect(payment.data.unappliedCentavos).toBe(0);
+
+    const after = await call<InvoiceData>(
+      harness.app,
+      'GET',
+      `/invoices/${String(invoice.id)}`,
+      harness.admin,
+    );
+    expect(after.data.status).toBe('PARTIALLY_PAID');
+    expect(after.data.paidCentavos).toBe(half);
+    expect(after.data.balanceCentavos).toBe(invoice.balanceCentavos - half);
   });
 });

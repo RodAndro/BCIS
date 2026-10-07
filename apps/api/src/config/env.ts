@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 
 import { z } from 'zod';
 
-import { repoEnvPath } from './root';
+import { repoEnvPath, repoPath } from './root';
 
 /**
  * Environment configuration.
@@ -98,7 +98,19 @@ function parseEnv(): Env {
     );
   }
 
-  return result.data;
+  /*
+   * Filesystem settings are written in repository-root terms, so they are
+   * anchored to the repository root here rather than left as written. The API's
+   * working directory is `apps/api`, and a relative `.runtime/pgsql/bin`
+   * resolved against it points at a directory that does not exist — which is
+   * how every backup failed with `spawn ... ENOENT`.
+   */
+  return {
+    ...result.data,
+    BACKUP_ROOT: repoPath(result.data.BACKUP_ROOT),
+    PROOF_STORAGE_ROOT: repoPath(result.data.PROOF_STORAGE_ROOT),
+    POSTGRES_BIN_DIR: repoPath(result.data.POSTGRES_BIN_DIR),
+  };
 }
 
 const DEV_PASSWORD = 'bcis_dev_password';

@@ -141,6 +141,142 @@ async function paymentAdjustments(db: Executor, query: ReportQuery): Promise<Rep
   };
 }
 
+/**
+ * Posted payments grouped by method.
+ *
+ * Counts and sums only POSTED payments: a payment parked in verification or
+ * reversed is not money the business has.
+ */
+async function paymentMethodSummary(db: Executor, query: ReportQuery): Promise<ReportData> {
+  const conditions: SQL[] = [eq(schema.payments.status, 'POSTED')];
+  const range = dateRange(schema.payments.paymentDate, query);
+  if (range !== undefined) conditions.push(range);
+  if (query.paymentMethod !== undefined)
+    conditions.push(eq(schema.payments.paymentMethod, query.paymentMethod));
+  if (query.collectorId !== undefined)
+    conditions.push(eq(schema.payments.receivedBy, query.collectorId));
+
+  const rows = await db
+    .select({
+      method: schema.payments.paymentMethod,
+      payments: sql<number>`count(*)::int`,
+      amountCentavos: sql<number>`coalesce(sum(${schema.payments.amountCentavos}), 0)::bigint`,
+    })
+    .from(schema.payments)
+    .where(and(...conditions))
+    .groupBy(schema.payments.paymentMethod)
+    .orderBy(asc(schema.payments.paymentMethod));
+
+  const mapped = rows.map((row) => ({
+    method: row.method,
+    payments: Number(row.payments),
+    amountCentavos: Number(row.amountCentavos),
+  }));
+  return {
+    columns: ['method', 'payments', 'amountCentavos'],
+    rows: mapped,
+  };
+}
+
+/**
+ * Billed and collected revenue grouped by the plan snapshot on the invoice.
+ *
+ * Attribution uses `invoice_items.service_plan_id` — the plan the account was
+ * billed at — rather than the account's current plan, so a later plan change
+ * does not silently move past revenue. `collectedCentavos` is the net of
+ * allocations against those invoices (reversals subtract).
+ */
+async function revenueByPlan(db: Executor, query: ReportQuery): Promise<ReportData> {
+  const billedConditions: SQL[] = [
+    sql`${schema.invoices.status} <> 'VOID'`,
+    sql`${schema.invoiceItems.itemType} = 'SUBSCRIPTION'`,
+  ];
+  const issueRange = dateRange(schema.invoices.issueDate, query);
+  if (issueRange !== undefined) billedConditions.push(issueRange);
+  if (query.servicePlanId !== undefined)
+    billedConditions.push(eq(schema.invoiceItems.servicePlanId, query.servicePlanId));
+  if (query.serviceTypeCode !== undefined)
+    billedConditions.push(eq(schema.serviceTypes.code, query.serviceTypeCode));
+
+  const collectedConditions: SQL[] = [sql`${schema.invoices.status} <> 'VOID'`];
+  const paymentRange = dateRange(schema.payments.paymentDate, query);
+  if (paymentRange !== undefined) collectedConditions.push(paymentRange);
+  if (query.servicePlanId !== undefined)
+    collectedConditions.push(eq(schema.invoiceItems.servicePlanId, query.servicePlanId));
+  if (query.serviceTypeCode !== undefined)
+    collectedConditions.push(eq(schema.serviceTypes.code, query.serviceTypeCode));
+
+  // Two grouped reads rather than one correlated subquery: a grouped query
+  // cannot reference an ungrouped invoice id, and splitting keeps billed (by
+  // issue date) and collected (by payment date) honest about their own dates.
+  const [billedRows, collectedRows] = await Promise.all([
+    db
+      .select({
+        plan: schema.servicePlans.name,
+        serviceType: schema.serviceTypes.code,
+        invoices: sql<number>`count(distinct ${schema.invoices.id})::int`,
+        billedCentavos: sql<number>`coalesce(sum(${schema.invoiceItems.amountCentavos}), 0)::bigint`,
+      })
+      .from(schema.invoiceItems)
+      .innerJoin(schema.invoices, eq(schema.invoiceItems.invoiceId, schema.invoices.id))
+      .innerJoin(schema.servicePlans, eq(schema.invoiceItems.servicePlanId, schema.servicePlans.id))
+      .innerJoin(schema.serviceTypes, eq(schema.servicePlans.serviceTypeId, schema.serviceTypes.id))
+      .where(and(...billedConditions))
+      .groupBy(schema.servicePlans.name, schema.serviceTypes.code)
+      .orderBy(asc(schema.servicePlans.name)),
+    db
+      .select({
+        plan: schema.servicePlans.name,
+        serviceType: schema.serviceTypes.code,
+        collectedCentavos: sql<number>`coalesce(sum(case when ${schema.paymentAllocations.isReversal} then -${schema.paymentAllocations.amountCentavos} else ${schema.paymentAllocations.amountCentavos} end), 0)::bigint`,
+      })
+      .from(schema.paymentAllocations)
+      .innerJoin(schema.payments, eq(schema.paymentAllocations.paymentId, schema.payments.id))
+      .innerJoin(schema.invoices, eq(schema.paymentAllocations.invoiceId, schema.invoices.id))
+      .innerJoin(
+        schema.invoiceItems,
+        and(
+          eq(schema.invoiceItems.invoiceId, schema.invoices.id),
+          sql`${schema.invoiceItems.itemType} = 'SUBSCRIPTION'`,
+        ),
+      )
+      .innerJoin(schema.servicePlans, eq(schema.invoiceItems.servicePlanId, schema.servicePlans.id))
+      .innerJoin(schema.serviceTypes, eq(schema.servicePlans.serviceTypeId, schema.serviceTypes.id))
+      .where(and(...collectedConditions))
+      .groupBy(schema.servicePlans.name, schema.serviceTypes.code),
+  ]);
+
+  const planKey = (plan: string, serviceType: string): string => `${plan}::${serviceType}`;
+  const collectedByPlan = new Map(
+    collectedRows.map((row) => [planKey(row.plan, row.serviceType), Number(row.collectedCentavos)]),
+  );
+
+  const mapped = billedRows.map((row) => {
+    const billed = Number(row.billedCentavos);
+    const collected = collectedByPlan.get(planKey(row.plan, row.serviceType)) ?? 0;
+    return {
+      plan: row.plan,
+      serviceType: row.serviceType,
+      invoices: Number(row.invoices),
+      billedCentavos: billed,
+      collectedCentavos: collected,
+      outstandingCentavos: billed - collected,
+    };
+  });
+
+  return {
+    columns: [
+      'plan',
+      'serviceType',
+      'invoices',
+      'billedCentavos',
+      'collectedCentavos',
+      'outstandingCentavos',
+    ],
+    rows: mapped,
+  };
+}
+
 async function voidedReceipts(db: Executor, query: ReportQuery): Promise<ReportData> {
   const range = dateRange(schema.receipts.voidedAt, query);
   const rows = await db
@@ -203,6 +339,10 @@ export async function reportRows(
       return billingVsCollection(db, query);
     case 'SUBSCRIBER_MASTER':
       return subscriberMaster(db, query);
+    case 'PAYMENT_METHOD_SUMMARY':
+      return paymentMethodSummary(db, query);
+    case 'REVENUE_BY_PLAN':
+      return revenueByPlan(db, query);
     case 'PAYMENT_ADJUSTMENTS':
       return paymentAdjustments(db, query);
     case 'VOIDED_RECEIPTS':

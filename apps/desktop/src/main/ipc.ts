@@ -28,6 +28,7 @@ import {
   receivableListQuerySchema,
   replaceAddressesSchema,
   replaceContactsSchema,
+  reportExportSchema,
   reportQuerySchema,
   retirePlanSchema,
   reversePaymentSchema,
@@ -49,7 +50,8 @@ import {
   voidInvoiceSchema,
 } from '@bcis/validation';
 import type { LoginResult, SessionUser } from '@bcis/validation';
-import { app, ipcMain } from 'electron';
+import { BrowserWindow, app, dialog, ipcMain } from 'electron';
+import { writeFile } from 'node:fs/promises';
 import { z } from 'zod';
 
 import {
@@ -60,11 +62,13 @@ import {
   IPC_CHANNELS,
   type ItemResult,
   type ListResult,
+  type ReportExportResult,
 } from '@shared/ipc';
 
 import {
   apiBaseUrl,
   callApi,
+  callApiBytes,
   hasSessionToken,
   setSessionToken,
   toQueryString,
@@ -102,6 +106,10 @@ function listFailure<T>(error: string, errorCode: string | null): ListResult<T> 
 /** Reject a malformed payload with the same shape as an API failure. */
 function rejected<T>(error: string): ItemResult<T> {
   return itemFailure<T>(error, 'VALIDATION_FAILED');
+}
+
+function exportFailure(error: string, errorCode: string | null): ReportExportResult {
+  return { ok: false, filePath: null, error, errorCode };
 }
 
 /** A payload that carries an id and nothing else. */
@@ -678,6 +686,53 @@ export function registerIpcHandlers(): void {
     return outcome.ok ? ok(outcome.data) : itemFailure(outcome.error, outcome.errorCode);
   });
 
+  /*
+   * Export a report to a file.
+   *
+   * The bytes come from the API as-is — this process neither parses nor
+   * re-encodes them, so an XLSX stays a valid ZIP and a PDF stays a valid PDF.
+   * The save dialog belongs here rather than in the renderer because only the
+   * main process may touch the filesystem, and the path the user picked is the
+   * only thing returned.
+   */
+  ipcMain.handle(
+    IPC_CHANNELS.REPORTS_EXPORT,
+    async (event, payload): Promise<ReportExportResult> => {
+      const parsed = validateInput(reportExportSchema, payload);
+      if (!parsed.ok) return exportFailure(parsed.error, 'VALIDATION_FAILED');
+
+      const { format, ...filters } = parsed.value;
+      const outcome = await callApiBytes(`/reports/export${toQueryString({ ...filters, format })}`);
+      if (!outcome.ok) return exportFailure(outcome.error, outcome.errorCode);
+
+      const owner = BrowserWindow.fromWebContents(event.sender);
+      const options = {
+        title: 'Export report',
+        defaultPath: `${parsed.value.type.toLowerCase()}.${format}`,
+        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+      };
+      const result =
+        owner === null
+          ? await dialog.showSaveDialog(options)
+          : await dialog.showSaveDialog(owner, options);
+
+      if (result.canceled || result.filePath === undefined) {
+        return exportFailure('Export cancelled.', 'CANCELLED');
+      }
+
+      try {
+        await writeFile(result.filePath, Buffer.from(outcome.data));
+      } catch (error) {
+        return exportFailure(
+          error instanceof Error ? error.message : 'Could not write the export file.',
+          'EXPORT_WRITE_FAILED',
+        );
+      }
+
+      return { ok: true, filePath: result.filePath, error: null, errorCode: null };
+    },
+  );
+
   // ── Subscribers ──────────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.SUBSCRIBERS_LIST, async (_event, payload) => {
     const parsed = validateInput(subscriberListQuerySchema, payload ?? {});
@@ -1124,8 +1179,19 @@ export function registerIpcHandlers(): void {
     return outcome.ok ? ok(outcome.data) : itemFailure(outcome.error, outcome.errorCode);
   });
 
-  ipcMain.handle(IPC_CHANNELS.PAYMENTS_PENDING, async () => {
-    const outcome = await callApi<unknown[]>('GET', '/payments/pending-verification');
+  ipcMain.handle(IPC_CHANNELS.PAYMENTS_PENDING, async (_event, payload) => {
+    const parsed = validateInput(paymentListQuerySchema, payload ?? {});
+    if (!parsed.ok) return listFailure(parsed.error, 'VALIDATION_FAILED');
+
+    // `status` is not forwarded: the route pins it to PENDING_VERIFICATION, and
+    // sending one would be a second source of truth for what this queue is.
+    const query = toQueryString({
+      search: parsed.value.search,
+      page: parsed.value.page,
+      pageSize: parsed.value.pageSize,
+    });
+
+    const outcome = await callApi<unknown[]>('GET', `/payments/pending-verification${query}`);
     if (!outcome.ok) return listFailure(outcome.error, outcome.errorCode);
 
     return {
@@ -1346,10 +1412,7 @@ export function registerIpcHandlers(): void {
     const parsed = validateInput(z.object({ backupId: z.string().uuid() }), payload);
     if (!parsed.ok) return rejected(parsed.error);
 
-    const outcome = await callApi<unknown>(
-      'POST',
-      `/backups/${parsed.value.backupId}/verify`,
-    );
+    const outcome = await callApi<unknown>('POST', `/backups/${parsed.value.backupId}/verify`);
     return outcome.ok ? ok(outcome.data) : itemFailure(outcome.error, outcome.errorCode);
   });
 
@@ -1357,10 +1420,7 @@ export function registerIpcHandlers(): void {
     const parsed = validateInput(z.object({ backupId: z.string().uuid() }), payload);
     if (!parsed.ok) return rejected(parsed.error);
 
-    const outcome = await callApi<unknown>(
-      'POST',
-      `/backups/${parsed.value.backupId}/restore`,
-    );
+    const outcome = await callApi<unknown>('POST', `/backups/${parsed.value.backupId}/restore`);
     return outcome.ok ? ok(outcome.data) : itemFailure(outcome.error, outcome.errorCode);
   });
 }

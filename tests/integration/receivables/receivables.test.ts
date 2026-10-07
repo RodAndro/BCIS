@@ -125,6 +125,46 @@ describe('Phase 7 receivables', () => {
     });
   });
 
+  /**
+   * Regression: an account WITH a payment used to 500 the whole list.
+   *
+   * `lastPayment` is a raw `sql` aggregate over `payments.payment_date` (a
+   * timestamptz). A raw expression arrives as Postgres text, not a Date, so the
+   * mapper's `.toISOString()` threw — but only once a payment existed, and the
+   * only `/receivables` call here ran before any payment did. That ordering is
+   * exactly why the suite stayed green while the screen was broken.
+   */
+  it('returns the last payment as an ISO-8601 timestamp when a payment exists', async () => {
+    await database.pool.query(
+      `INSERT INTO payments (subscriber_id, service_account_id, payment_method, amount_centavos,
+         applied_centavos, unapplied_centavos, status, payment_date, posted_at, received_by)
+       VALUES ($1, $2, 'CASH', 5000, 0, 5000, 'POSTED', '2026-03-20T02:30:00Z', now(), 1)`,
+      [subscriberId, accountId],
+    );
+
+    const expected = await database.pool.query<{ last: Date }>(
+      `SELECT max(payment_date) AS last FROM payments
+       WHERE service_account_id = $1 AND status IN ('POSTED', 'REVERSED')`,
+      [accountId],
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/receivables?page=1&pageSize=10',
+      headers: admin,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const rows = response.json<{
+      data: Array<{ serviceAccountId: number; lastPayment: string | null }>;
+    }>().data;
+    const row = rows.find((item) => item.serviceAccountId === accountId);
+
+    expect(row).toBeDefined();
+    // The exact instant, formatted the same way every other timestamp is.
+    expect(row?.lastPayment).toBe(expected.rows[0]?.last.toISOString());
+  });
+
   it('does not authorize a cashier to suspend service', async () => {
     const response = await app.inject({
       method: 'POST',

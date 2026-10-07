@@ -184,16 +184,24 @@ test('exposes exactly the declared preload surface to the renderer', async () =>
     };
   });
 
+  // The full list, and it is asserted exactly: a namespace that appears here
+  // without having been declared in `shared/ipc.ts` is the regression this
+  // guards against, so it must stay exhaustive rather than becoming a subset.
   expect(bridge.namespaces).toEqual([
     'app',
     'audit',
     'auth',
+    'backups',
     'billing',
     'collectionAreas',
+    'collectionAssignments',
+    'collectionBatches',
+    'collectionRemittances',
     'collectors',
     'health',
     'invoices',
     'ledger',
+    'payments',
     'permissions',
     'plans',
     'receivables',

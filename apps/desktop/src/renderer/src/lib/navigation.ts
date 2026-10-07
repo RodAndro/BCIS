@@ -218,7 +218,12 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { label: 'Users & Roles', screen: 'users', phase: 2, permission: PERMISSIONS.USER_VIEW },
       { label: 'Audit Log', screen: 'audit-log', phase: 2, permission: PERMISSIONS.AUDIT_VIEW },
       { label: 'Settings', screen: 'settings', phase: 2, permission: PERMISSIONS.SETTINGS_MANAGE },
-      { label: 'Backup & Restore', screen: 'backup', phase: 9, permission: PERMISSIONS.BACKUP_VERIFY },
+      {
+        label: 'Backup & Restore',
+        screen: 'backup',
+        phase: 9,
+        permission: PERMISSIONS.BACKUP_VERIFY,
+      },
     ],
   },
 ];

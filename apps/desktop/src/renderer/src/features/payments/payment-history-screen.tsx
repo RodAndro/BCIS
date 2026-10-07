@@ -8,23 +8,37 @@ import type { PaymentListQuery, PaymentSummary } from '@bcis/validation';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
 import { Field, Select } from '@renderer/components/ui/form';
+import { DEFAULT_PAGE_SIZE, Pager } from '@renderer/components/ui/pager';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@renderer/components/ui/table';
 import { formatMoney } from '@renderer/lib/money';
 import type { JSX } from 'react';
 import { useState } from 'react';
 
+interface Filters {
+  readonly status: string;
+  readonly method: string;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
 export function PaymentHistoryScreen(): JSX.Element {
-  const [status, setStatus] = useState<string>('');
-  const [method, setMethod] = useState<string>('');
+  const [filters, setFilters] = useState<Filters>({
+    status: '',
+    method: '',
+    page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
 
   const payments = useQuery({
-    queryKey: ['payments', status, method],
+    queryKey: ['payments', filters],
     queryFn: () =>
       window.bcis.payments.list({
-        page: 1,
-        pageSize: 100,
-        ...(status === '' ? {} : { status: status as PaymentListQuery['status'] }),
-        ...(method === '' ? {} : { paymentMethod: method as PaymentListQuery['paymentMethod'] }),
+        page: filters.page,
+        pageSize: filters.pageSize,
+        ...(filters.status === '' ? {} : { status: filters.status as PaymentListQuery['status'] }),
+        ...(filters.method === ''
+          ? {}
+          : { paymentMethod: filters.method as PaymentListQuery['paymentMethod'] }),
       }),
   });
 
@@ -46,8 +60,14 @@ export function PaymentHistoryScreen(): JSX.Element {
                 <Select
                   id={id}
                   className="h-8 w-44 text-xs"
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value)}
+                  value={filters.status}
+                  onChange={(event) => {
+                    setFilters((current) => ({
+                      ...current,
+                      status: event.target.value,
+                      page: 1,
+                    }));
+                  }}
                 >
                   <option value="">All statuses</option>
                   {PAYMENT_STATUSES.map((value) => (
@@ -63,8 +83,14 @@ export function PaymentHistoryScreen(): JSX.Element {
                 <Select
                   id={id}
                   className="h-8 w-40 text-xs"
-                  value={method}
-                  onChange={(event) => setMethod(event.target.value)}
+                  value={filters.method}
+                  onChange={(event) => {
+                    setFilters((current) => ({
+                      ...current,
+                      method: event.target.value,
+                      page: 1,
+                    }));
+                  }}
                 >
                   <option value="">All methods</option>
                   {PAYMENT_METHODS.map((value) => (
@@ -97,12 +123,30 @@ export function PaymentHistoryScreen(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={7}>No payments match the selected filters.</EmptyRow>}
+            {payments.isLoading && <EmptyRow colSpan={7}>Loading…</EmptyRow>}
+
+            {!payments.isLoading && rows.length === 0 && (
+              <EmptyRow colSpan={7}>No payments match the selected filters.</EmptyRow>
+            )}
+
             {rows.map((payment) => (
               <PaymentRow key={payment.id} payment={payment} />
             ))}
           </tbody>
         </DataTable>
+
+        <Pager
+          className="mt-4"
+          page={filters.page}
+          pageSize={filters.pageSize}
+          total={payments.data?.total ?? 0}
+          onChange={(page) => {
+            setFilters((current) => ({ ...current, page }));
+          }}
+          onPageSizeChange={(pageSize) => {
+            setFilters((current) => ({ ...current, pageSize, page: 1 }));
+          }}
+        />
       </SectionCard>
     </div>
   );

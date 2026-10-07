@@ -5,7 +5,11 @@ import {
   centavos,
   type RoleCode,
 } from '@bcis/shared';
-import { computeBatchTotals, computeRemittanceVariance } from '@bcis/domain';
+import {
+  computeBatchTotals,
+  computeRemittanceVariance,
+  remittanceCloseBlockers,
+} from '@bcis/domain';
 import type {
   BatchReconciliationInput,
   BatchRemittanceInput,
@@ -22,6 +26,7 @@ import type {
   RouteSheetEntry,
   SubmitCollectionBatchInput,
   UpdateCollectionAreaInput,
+  VarianceApprovalInput,
 } from '@bcis/validation';
 import { offsetFor } from '@bcis/validation';
 import { randomUUID } from 'node:crypto';
@@ -408,7 +413,9 @@ export async function recordRemittance(
       remittedAt: new Date(),
       receivedBy: input.receivedByUserId,
       resolutionNotes: input.resolutionNotes ?? null,
-      approvedBy: actor.userId,
+      // Recording the remittance is not approving a variance. A short or over
+      // remittance stays unapproved until `approveVariance` records a decision.
+      approvedBy: null,
       createdBy: actor.userId,
     });
 
@@ -459,6 +466,14 @@ export async function reconcileBatch(
 
   const difference = input.actualCashCentavos - input.expectedCashCentavos;
 
+  // A difference is a short/over position: it must be explained, not saved as
+  // a silent zero. `route` surfaces the field so the UI can point at it.
+  if (difference !== 0 && (input.reason === undefined || input.reason.length === 0)) {
+    throw new ValidationError('A reconciliation with a difference must record a reason.', {
+      field: 'reason',
+    });
+  }
+
   await db.transaction(async (tx) => {
     await repository.insertReconciliation(tx, {
       batchId,
@@ -492,6 +507,60 @@ export async function reconcileBatch(
   return { differenceCentavos: difference, status: 'RECONCILED' };
 }
 
+/**
+ * Approve a short or over remittance.
+ *
+ * The decision is the whole point of the variance: the money is genuinely
+ * missing (or extra), and someone with `collection.variance.approve` has to
+ * accept it with a written reason. Without this the batch cannot be closed.
+ */
+export async function approveVariance(
+  db: Db,
+  batchId: number,
+  input: VarianceApprovalInput,
+  actor: ActorContext,
+): Promise<{ approved: true; varianceType: string; varianceCentavos: number }> {
+  const batch = await repository.findBatchById(db, batchId);
+  if (batch === null) {
+    throw new NotFoundError('That collection batch does not exist.');
+  }
+
+  const remittance = await repository.findRemittanceByBatch(db, batchId);
+  if (remittance === null) {
+    throw new ConflictError('Record the remittance before approving a variance.');
+  }
+  if (remittance.varianceCentavos === 0) {
+    throw new ConflictError('This remittance is balanced and has no variance to approve.');
+  }
+
+  await db.transaction(async (tx) => {
+    await repository.approveRemittanceVariance(tx, remittance.id, {
+      resolutionNotes: input.resolutionNotes,
+      approvedBy: actor.userId,
+    });
+
+    await writeAudit(tx, {
+      action: AUDIT_ACTIONS.COLLECTION_VARIANCE_APPROVED,
+      entityType: AUDIT_ENTITIES.COLLECTION_BATCH,
+      entityId: String(batchId),
+      actorUserId: actor.userId,
+      sessionId: actor.sessionId,
+      ip: actor.ip,
+      reason: input.resolutionNotes,
+      newValues: {
+        varianceCentavos: remittance.varianceCentavos,
+        varianceType: remittance.varianceType,
+      },
+    });
+  });
+
+  return {
+    approved: true,
+    varianceType: remittance.varianceType,
+    varianceCentavos: remittance.varianceCentavos,
+  };
+}
+
 export async function closeBatch(
   db: Db,
   batchId: number,
@@ -505,6 +574,20 @@ export async function closeBatch(
 
   if (batch.status !== 'RECONCILED') {
     throw new ConflictError('Only a reconciled batch can be closed.');
+  }
+
+  // A batch carrying a short/over remittance is not closed silently: the
+  // variance must be approved first (the domain rule states exactly why).
+  const remittance = await repository.findRemittanceByBatch(db, batchId);
+  if (remittance !== null && remittance.varianceCentavos !== 0 && remittance.approvedBy === null) {
+    const variance = computeRemittanceVariance(
+      centavos(batch.cashCollectedCentavos),
+      centavos(remittance.remittedCashCentavos),
+    );
+    const [blocker] = remittanceCloseBlockers(variance);
+    throw new ConflictError(
+      `${blocker ?? 'This remittance has an unresolved variance.'} A supervisor must approve the variance before the batch can be closed.`,
+    );
   }
 
   await db.transaction(async (tx) => {
@@ -588,9 +671,7 @@ export async function listRemittances(db: Db): Promise<readonly RemittanceSummar
   }));
 }
 
-export async function listAssignments(
-  db: Db,
-): Promise<readonly CollectorAssignmentSummary[]> {
+export async function listAssignments(db: Db): Promise<readonly CollectorAssignmentSummary[]> {
   const rows = await repository.listCollectorAssignments(db);
   return rows.map((row) => ({
     id: row.id,
@@ -604,9 +685,7 @@ export async function listAssignments(
   }));
 }
 
-function toBatchSummary(
-  row: repository.CollectionBatchSummaryRow,
-): CollectionBatchSummary {
+function toBatchSummary(row: repository.CollectionBatchSummaryRow): CollectionBatchSummary {
   return {
     id: row.id,
     batchNumber: row.batchNumber,

@@ -1,11 +1,8 @@
-import type {
-  CollectionAreaSummary,
-  CollectorAssignmentSummary,
-} from '@bcis/validation';
+import type { CollectionAreaSummary, CollectorAssignmentSummary } from '@bcis/validation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@renderer/components/ui/button';
 import { Alert, PageHeader, SectionCard } from '@renderer/components/ui/feedback';
-import { Field, Input } from '@renderer/components/ui/form';
+import { Field, Input, Select } from '@renderer/components/ui/form';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@renderer/components/ui/table';
 import type { JSX } from 'react';
 import { useState } from 'react';
@@ -27,12 +24,18 @@ export function AreasRoutesScreen(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const areas = useQuery({ queryKey: ['collection-areas'], queryFn: () => window.bcis.collectionAreas.list() });
+  const areas = useQuery({
+    queryKey: ['collection-areas'],
+    queryFn: () => window.bcis.collectionAreas.list(),
+  });
   const assignments = useQuery({
     queryKey: ['collection-assignments'],
     queryFn: () => window.bcis.collectionAssignments.list(),
   });
-  const collectors = useQuery({ queryKey: ['collectors'], queryFn: () => window.bcis.collectors.list() });
+  const collectors = useQuery({
+    queryKey: ['collectors'],
+    queryFn: () => window.bcis.collectors.list(),
+  });
 
   const assignmentFor = (areaId: number): CollectorAssignmentSummary | undefined =>
     assignments.data?.items.find((assignment) => assignment.collectionAreaId === areaId);
@@ -122,11 +125,7 @@ export function AreasRoutesScreen(): JSX.Element {
               <EmptyRow colSpan={4}>No collection areas yet.</EmptyRow>
             )}
             {(areas.data?.items ?? []).map((area) => (
-              <AreaRow
-                key={area.id}
-                area={area}
-                assignment={assignmentFor(area.id)}
-              />
+              <AreaRow key={area.id} area={area} assignment={assignmentFor(area.id)} />
             ))}
           </tbody>
         </DataTable>
@@ -137,9 +136,8 @@ export function AreasRoutesScreen(): JSX.Element {
           <div className="w-56">
             <Field label="Area">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className="h-9 w-full rounded-md border border-input bg-surface px-2.5 text-sm"
                   value={assignAreaId}
                   onChange={(event) => setAssignAreaId(Number(event.target.value))}
                 >
@@ -149,16 +147,15 @@ export function AreasRoutesScreen(): JSX.Element {
                       {area.code} — {area.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
           </div>
           <div className="w-56">
             <Field label="Collector">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className="h-9 w-full rounded-md border border-input bg-surface px-2.5 text-sm"
                   value={collectorId}
                   onChange={(event) => setCollectorId(Number(event.target.value))}
                 >
@@ -168,7 +165,7 @@ export function AreasRoutesScreen(): JSX.Element {
                       {collector.fullName}
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
           </div>

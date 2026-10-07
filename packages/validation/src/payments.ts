@@ -3,7 +3,13 @@ import type { PaymentMethod, PaymentStatus } from '@bcis/shared';
 import { z } from 'zod';
 
 import { paginationQuerySchema } from './pagination';
-import { businessDateSchema, centavosSchema, idSchema, noteSchema, reasonSchema } from './primitives';
+import {
+  businessDateSchema,
+  centavosSchema,
+  idSchema,
+  noteSchema,
+  reasonSchema,
+} from './primitives';
 
 /**
  * Payment contracts.
@@ -14,8 +20,14 @@ import { businessDateSchema, centavosSchema, idSchema, noteSchema, reasonSchema 
  * from another.
  */
 
-export const paymentMethodSchema = z.enum([...PAYMENT_METHODS] as [PaymentMethod, ...PaymentMethod[]]);
-export const paymentStatusSchema = z.enum([...PAYMENT_STATUSES] as [PaymentStatus, ...PaymentStatus[]]);
+export const paymentMethodSchema = z.enum([...PAYMENT_METHODS] as [
+  PaymentMethod,
+  ...PaymentMethod[],
+]);
+export const paymentStatusSchema = z.enum([...PAYMENT_STATUSES] as [
+  PaymentStatus,
+  ...PaymentStatus[],
+]);
 
 /** Reversal reason codes, shared with `ck_payment_reversals_reason_code`. */
 export const paymentReversalReasonCodeSchema = z.enum([
@@ -89,10 +101,7 @@ export const createPaymentSchema = z.object({
   subscriberId: idSchema,
   serviceAccountId: idSchema,
   paymentMethod: paymentMethodSchema,
-  amountCentavos: centavosSchema.refine(
-    (value) => value > 0,
-    'Enter an amount greater than zero.',
-  ),
+  amountCentavos: centavosSchema.refine((value) => value > 0, 'Enter an amount greater than zero.'),
   referenceNumber: z.string().trim().max(100).optional(),
   senderName: z.string().trim().max(120).optional(),
   senderMobile: z.string().trim().max(30).optional(),

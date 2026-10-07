@@ -45,7 +45,9 @@ export function BackupScreen(): JSX.Element {
       setError(response.error ?? 'Verification failed.');
       return;
     }
-    setMessage(response.item.ok ? 'Verification passed.' : `Verification failed: ${response.item.notes}`);
+    setMessage(
+      response.item.ok ? 'Verification passed.' : `Verification failed: ${response.item.notes}`,
+    );
     void queryClient.invalidateQueries({ queryKey: ['backups'] });
   }
 
@@ -128,6 +130,13 @@ function BackupRow({
   readonly onVerify: () => void;
   readonly onRestore: () => void;
 }): JSX.Element {
+  /*
+   * The API re-verifies a backup's contents before restoring it and refuses
+   * anything that does not check out, so offering Restore on a backup that
+   * never verified would only ever produce an error.
+   */
+  const restorable = backup.status === 'VERIFIED' || backup.status === 'RESTORED';
+
   return (
     <Tr>
       <Td className="font-mono text-[13px]">{backup.backupId}</Td>
@@ -138,15 +147,21 @@ function BackupRow({
       <Td className="whitespace-nowrap text-muted-foreground">
         {backup.verifiedAt === null ? '—' : new Date(backup.verifiedAt).toLocaleString()}
       </Td>
-      <Td className="max-w-xs truncate text-muted-foreground">
-        {backup.verificationNotes ?? '—'}
-      </Td>
+      <Td className="max-w-xs truncate text-muted-foreground">{backup.verificationNotes ?? '—'}</Td>
       <Td align="right">
         <div className="flex justify-end gap-2">
           <Button size="sm" variant="ghost" disabled={busy} onClick={onVerify}>
             Verify
           </Button>
-          <Button size="sm" variant="danger" disabled={busy} onClick={onRestore}>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={busy || !restorable}
+            title={
+              restorable ? undefined : 'Only a backup that verified successfully can be restored.'
+            }
+            onClick={onRestore}
+          >
             Restore
           </Button>
         </div>

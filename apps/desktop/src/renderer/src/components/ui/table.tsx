@@ -20,8 +20,8 @@ export function DataTable({
   readonly className?: string;
 }): JSX.Element {
   return (
-    <div className={cn('overflow-x-auto rounded-lg border border-border bg-surface', className)}>
-      <table className="w-full border-collapse text-sm">{children}</table>
+    <div className={cn('overflow-x-auto rounded-lg border border-border bg-surface shadow-panel', className)}>
+      <table className="w-full min-w-full border-collapse text-sm">{children}</table>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export function Th({
     <th
       scope="col"
       className={cn(
-        'border-b border-border bg-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground',
+        'border-b border-border bg-muted/70 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground',
         align === 'right' ? 'text-right' : 'text-left',
         className,
       )}
@@ -59,7 +59,7 @@ export function Td({
   return (
     <td
       className={cn(
-        'border-b border-border px-3 py-2 align-middle text-foreground',
+        'border-b border-border px-4 py-3 align-middle text-foreground',
         align === 'right' && 'text-right tabular-nums',
         className,
       )}
@@ -76,7 +76,7 @@ export function Tr({
   readonly children: ReactNode;
   readonly className?: string;
 }): JSX.Element {
-  return <tr className={cn('hover:bg-muted/40', className)}>{children}</tr>;
+  return <tr className={cn('transition-colors hover:bg-accent/5', className)}>{children}</tr>;
 }
 
 /** A full-width row for "nothing here", so the table never renders as a bare box. */

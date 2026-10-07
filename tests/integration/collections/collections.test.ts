@@ -347,6 +347,37 @@ describe('Phase 6 collections', () => {
     });
     expect(reconcileResponse.statusCode).toBe(200);
 
+    // A shortage is not balanced away silently: the variance has to be
+    // approved by someone holding `collection.variance.approve` first.
+    const closeBeforeApproval = await app.inject({
+      method: 'PATCH',
+      url: `/collection-batches/${String(batchId)}/close`,
+      headers: supervisor,
+      payload: { reason: 'Closing after authorized reconciliation.' },
+    });
+    expect(closeBeforeApproval.statusCode).toBe(409);
+    expect(closeBeforeApproval.json<{ error: { message: string } }>().error.message).toContain(
+      'variance',
+    );
+
+    const cashierApproval = await app.inject({
+      method: 'POST',
+      url: `/collection-batches/${String(batchId)}/approve-variance`,
+      headers: cashier,
+      payload: { resolutionNotes: 'A cashier may not approve a collector variance.' },
+    });
+    expect(cashierApproval.statusCode).toBe(403);
+
+    const approveResponse = await app.inject({
+      method: 'POST',
+      url: `/collection-batches/${String(batchId)}/approve-variance`,
+      headers: supervisor,
+      payload: {
+        resolutionNotes: 'Shortage reviewed and approved by the collection supervisor.',
+      },
+    });
+    expect(approveResponse.statusCode).toBe(200);
+
     const closeAfterReconcile = await app.inject({
       method: 'PATCH',
       url: `/collection-batches/${String(batchId)}/close`,

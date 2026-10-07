@@ -251,7 +251,7 @@ export function InvoiceDetailScreen({
             disabled={busy || detail.status === 'VOID' || detail.paidCentavos > 0}
             title={
               detail.paidCentavos > 0
-                ? 'This invoice has payments applied. Reverse them first (Phase 5).'
+                ? 'This invoice has payments applied. Reverse those payments first.'
                 : undefined
             }
             onClick={() => {

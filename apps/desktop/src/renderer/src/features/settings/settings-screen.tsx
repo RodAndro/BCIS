@@ -149,7 +149,7 @@ function SettingRow({
       </Td>
       <Td className="whitespace-nowrap text-xs text-muted-foreground">
         {formatInstant(setting.updatedAt)}
-        {saved && !dirty && <span className="ml-2 text-emerald-700">saved</span>}
+        {saved && !dirty && <span className="ml-2 text-success">saved</span>}
       </Td>
       <Td align="right">
         <Button

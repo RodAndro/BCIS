@@ -1,7 +1,4 @@
-import type {
-  PaymentDetail,
-  PaymentSummary,
-} from '@bcis/validation';
+import type { PaymentDetail, PaymentSummary } from '@bcis/validation';
 
 import type { AllocationRow, PaymentRow } from './payments.repository';
 
